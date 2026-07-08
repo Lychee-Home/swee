@@ -109,6 +109,7 @@ async def broadcast_embed(title, description, color, dt=None):
 # ---------- Live stats embed (separate channel, pinned, edited in place) ----------
 stats_message_id = None  # cached once created, so we edit rather than re-send
 _stats_lock = asyncio.Lock()  # serializes concurrent callers (ticker + join/leave events)
+_last_auto_restart = None  # time.monotonic() of the last auto-restart trigger, or None
 
 
 def read_ram_stats():
@@ -198,11 +199,48 @@ async def update_stats_message():
             log.exception("stats message update failed")
 
 
+async def auto_restart_sequence(pct):
+    warning_sec = int(RAM_RESTART_WARNING_SEC)
+    await broadcast_embed(
+        "High RAM usage detected",
+        f"RAM usage at {pct}% — restarting server in {warning_sec}s.",
+        COLOR_SHUTDOWN,
+    )
+    try:
+        await rest.announce(f"Server restarting in {warning_sec}s due to high memory usage")
+    except Exception:
+        log.exception("in-game auto-restart announce failed")
+
+    await asyncio.sleep(RAM_RESTART_WARNING_SEC)
+
+    embed = await restart_palworld()
+    channel = bot.get_channel(ACTIVITY_CHANNEL_ID)
+    if isinstance(channel, discord.TextChannel):
+        await channel.send(embed=embed)
+    else:
+        log.warning("auto-restart result broadcast failed: channel %s not found or not a text channel", ACTIVITY_CHANNEL_ID)
+
+
 @tasks.loop(minutes=1)
 async def stats_ticker():
     # Periodic tick for FPS/uptime, since those don't have a discrete log event.
     # Join/leave events also trigger an immediate update — see log_tailer below.
     await update_stats_message()
+
+    if RAM_RESTART_THRESHOLD_PCT is None:
+        return
+
+    global _last_auto_restart
+    try:
+        _, _, pct = read_ram_stats()
+    except Exception:
+        log.exception("RAM read failed for auto-restart check")
+        return
+
+    now = time.monotonic()
+    if should_auto_restart(pct, RAM_RESTART_THRESHOLD_PCT, _last_auto_restart, now, RAM_RESTART_COOLDOWN_MIN):
+        _last_auto_restart = now
+        asyncio.create_task(auto_restart_sequence(pct))
 
 
 # ---------- Log tailing (same events the original relay.py already captures) ----------
