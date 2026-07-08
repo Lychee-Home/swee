@@ -1,0 +1,18 @@
+# systemd unit template for the swee Discord bot.
+# Installed to /etc/systemd/system/swee.service by deploy/setup.sh, which
+# substitutes __SWEE_USER__ and __SWEE_DIR__ for the values it was run with.
+[Unit]
+Description=swee Discord bot for Palworld
+After=network-online.target palworld.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__SWEE_USER__
+WorkingDirectory=__SWEE_DIR__
+ExecStart=__SWEE_DIR__/.venv/bin/python __SWEE_DIR__/main.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

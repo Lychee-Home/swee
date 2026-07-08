@@ -55,6 +55,24 @@ user running the bot must have passwordless `sudo` configured for the `systemctl
 command (e.g. via a `NOPASSWD` sudoers entry) — otherwise the bot exits immediately at startup with
 a clear error in the log.
 
+## Deployment
+
+For a Linux host you set up once and leave running, `deploy/setup.sh` automates the steps above
+plus the systemd wiring: it creates the venv, installs dependencies, copies `.env.example` to
+`.env` (without overwriting an existing one), checks that `palworld.service` exists, installs a
+passwordless-sudo rule scoped to `systemctl restart palworld`, and installs/enables a
+`swee.service` unit (rendered from `deploy/swee.service`). It's safe to re-run — it skips any step
+that's already in the desired state.
+
+```
+git clone <repo> && cd swee
+./deploy/setup.sh
+# fill in .env with your secrets
+sudo systemctl start swee
+```
+
+Manage the running bot with `systemctl {status,stop,restart} swee` and `journalctl -u swee -f`.
+
 ## Requirements
 
 - Python 3.13
