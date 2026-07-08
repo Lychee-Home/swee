@@ -316,21 +316,12 @@ async def broadcast(interaction: discord.Interaction, message: str):
     await interaction.response.send_message("Sent.")
 
 
-@bot.tree.command(description="Restart the Palworld service")
-@is_admin()
-async def restart(interaction: discord.Interaction):
-    embed = discord.Embed(
-        title="Restarting Palworld server",
-        color=COLOR_SHUTDOWN,
-    )
-    embed.add_field(name="Status", value="Sending restart command\u2026")
-    await interaction.response.send_message(embed=embed)
-
+async def restart_palworld(on_progress=None):
     proc = await asyncio.create_subprocess_exec("sudo", "systemctl", "restart", "palworld")
     await proc.wait()
 
-    embed.set_field_at(0, name="Status", value="Waiting for server to come back online\u2026")
-    await interaction.edit_original_response(embed=embed)
+    if on_progress:
+        await on_progress("Waiting for server to come back online\u2026")
 
     start = time.monotonic()
     timeout = 120
@@ -344,18 +335,35 @@ async def restart(interaction: discord.Interaction):
             await asyncio.sleep(5)
 
     elapsed = int(time.monotonic() - start)
+    embed = discord.Embed(color=COLOR_READY if online else COLOR_LEAVE)
     if online:
         embed.title = "Server restarted"
-        embed.color = COLOR_READY
-        embed.set_field_at(0, name="Status", value=f"Back online after {elapsed}s")
+        embed.add_field(name="Status", value=f"Back online after {elapsed}s")
     else:
         embed.title = "Restart timed out"
-        embed.color = COLOR_LEAVE
-        embed.set_field_at(
-            0, name="Status",
+        embed.add_field(
+            name="Status",
             value=f"No response after {timeout}s \u2014 check `journalctl -u palworld`",
         )
-    await interaction.edit_original_response(embed=embed)
+    return embed
+
+
+@bot.tree.command(description="Restart the Palworld service")
+@is_admin()
+async def restart(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="Restarting Palworld server",
+        color=COLOR_SHUTDOWN,
+    )
+    embed.add_field(name="Status", value="Sending restart command\u2026")
+    await interaction.response.send_message(embed=embed)
+
+    async def on_progress(status):
+        embed.set_field_at(0, name="Status", value=status)
+        await interaction.edit_original_response(embed=embed)
+
+    result_embed = await restart_palworld(on_progress)
+    await interaction.edit_original_response(embed=result_embed)
 
 
 @bot.tree.error
