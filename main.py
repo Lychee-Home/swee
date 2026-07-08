@@ -4,6 +4,7 @@ import json
 import time
 import asyncio
 import logging
+import subprocess
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -372,6 +373,23 @@ async def broadcast(interaction: discord.Interaction, message: str):
     await interaction.response.send_message("Sent.")
 
 
+def check_palworld_service():
+    load_state = subprocess.run(
+        ["systemctl", "show", "-p", "LoadState", "--value", "palworld"],
+        capture_output=True, text=True,
+    ).stdout.strip()
+    if load_state != "loaded":
+        log.error("palworld.service not found (LoadState=%s) — check the unit is installed", load_state or "unknown")
+        return False
+
+    sudo_check = subprocess.run(["sudo", "-n", "true"], capture_output=True)
+    if sudo_check.returncode != 0:
+        log.error("passwordless sudo not configured for this user — /restart and RAM auto-restart will hang")
+        return False
+
+    return True
+
+
 async def restart_palworld(on_progress=None):
     proc = await asyncio.create_subprocess_exec("sudo", "systemctl", "restart", "palworld")
     await proc.wait()
@@ -449,6 +467,9 @@ async def on_ready():
 
 
 async def main():
+    logging.basicConfig(level=logging.INFO)
+    if not check_palworld_service():
+        raise SystemExit(1)
     discord.utils.setup_logging()
     async with bot:
         await bot.start(BOT_TOKEN)
