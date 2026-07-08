@@ -27,3 +27,8 @@ architecture and setup details.
 - When adding dependencies, add them to `requirements.txt`.
 - When adding a test suite or lint tooling, update this file with the actual run/build/lint/test
   commands.
+- Non-trivial features get a design spec and implementation plan committed under
+  `docs/superpowers/specs/` and `docs/superpowers/plans/` (see `superpowers:brainstorming` and
+  `superpowers:writing-plans`), named `YYYY-MM-DD-<topic>-design.md` / `YYYY-MM-DD-<topic>.md`.
+  Keep them — they capture design rationale (why, not just what) that isn't recoverable from a
+  diff or commit message alone.
