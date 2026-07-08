@@ -111,6 +111,7 @@ stats_message_id = None  # cached once created, so we edit rather than re-send
 _stats_lock = asyncio.Lock()  # serializes concurrent callers (ticker + join/leave events)
 _last_auto_restart = None  # time.monotonic() of the last auto-restart trigger, or None
 _auto_restart_task = None  # keeps a strong reference so asyncio doesn't GC it mid-run
+_auto_restart_in_progress = False  # suppresses log_tailer's own "Server is online" during a sequence
 
 
 def read_ram_stats():
@@ -201,6 +202,7 @@ async def update_stats_message():
 
 
 async def auto_restart_sequence(pct):
+    global _auto_restart_in_progress
     warning_sec = int(RAM_RESTART_WARNING_SEC)
     await broadcast_embed(
         "High RAM usage detected",
@@ -214,7 +216,12 @@ async def auto_restart_sequence(pct):
 
     await asyncio.sleep(RAM_RESTART_WARNING_SEC)
 
-    embed = await restart_palworld()
+    _auto_restart_in_progress = True
+    try:
+        embed = await restart_palworld()
+    finally:
+        _auto_restart_in_progress = False
+
     channel = bot.get_channel(ACTIVITY_CHANNEL_ID)
     if isinstance(channel, discord.TextChannel):
         await channel.send(embed=embed)
@@ -298,7 +305,8 @@ async def log_tailer():
                     if SHUTDOWN_RE.search(msg):
                         await broadcast_embed("Server shutting down", None, COLOR_SHUTDOWN, dt)
                     elif m := VERSION_RE.search(msg):
-                        await broadcast_embed("Server is online", f"Game version: `{m.group(1)}`", COLOR_READY, dt)
+                        if not _auto_restart_in_progress:
+                            await broadcast_embed("Server is online", f"Game version: `{m.group(1)}`", COLOR_READY, dt)
             log.warning("log tailer: journalctl stream ended, restarting in 5s")
         except Exception:
             log.exception("log tailer crashed, restarting in 5s")
