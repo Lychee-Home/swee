@@ -467,10 +467,9 @@ async def on_ready():
 
 
 async def main():
-    logging.basicConfig(level=logging.INFO)
+    discord.utils.setup_logging()
     if not check_palworld_service():
         raise SystemExit(1)
-    discord.utils.setup_logging()
     async with bot:
         await bot.start(BOT_TOKEN)
         # bot.start() returns once the bot is closed (e.g. Ctrl+C) — clean up

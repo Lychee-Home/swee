@@ -48,6 +48,11 @@ Slash commands are synced to `GUILD_ID` on startup. Admin-only commands (`save`,
 `systemctl`/`/proc`, and `log_tailer` shells out to `journalctl`, so the bot must run on the same
 Linux host as the Palworld service — it will not run as-is on Windows.
 
+The systemd unit managing the Palworld service must be named exactly `palworld`. Additionally, the
+user running the bot must have passwordless `sudo` configured for the `systemctl restart palworld`
+command (e.g. via a `NOPASSWD` sudoers entry) — otherwise the bot exits immediately at startup with
+a clear error in the log.
+
 ## Requirements
 
 - Python 3.13
