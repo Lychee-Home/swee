@@ -356,11 +356,13 @@ async def status(interaction: discord.Interaction):
 async def players(interaction: discord.Interaction):
     data = await rest.players()
     plist = data.get("players", [])
+    embed = discord.Embed(title="Online Players", color=COLOR_CHAT)
     if not plist:
-        await interaction.response.send_message("No one online.")
-        return
-    lines = [f"**{p['name']}** — Lv.{p['level']} ({p['ping']}ms)" for p in plist]
-    await interaction.response.send_message("\n".join(lines))
+        embed.description = "No one online."
+    else:
+        lines = [f"**{p['name']}** — Lv.{p['level']} ({round(p['ping'])}ms)" for p in plist]
+        embed.description = "\n".join(lines)
+    await interaction.response.send_message(embed=embed)
 
 
 @bot.tree.command(description="Force-save the world")
