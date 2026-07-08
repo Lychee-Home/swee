@@ -18,11 +18,13 @@ load_dotenv()
 
 log = logging.getLogger("swee")
 
-GUILD_ID          = int(os.environ["GUILD_ID"])
-RELAY_CHANNEL_ID  = int(os.environ["RELAY_CHANNEL_ID"])
-STATS_CHANNEL_ID  = int(os.environ["STATS_CHANNEL_ID"])
-ADMIN_ROLE_ID     = int(os.environ["ADMIN_ROLE_ID"])
-BOT_TOKEN         = os.environ["DISCORD_BOT_TOKEN"]
+GUILD_ID            = int(os.environ["GUILD_ID"])
+RELAY_CHANNEL_ID    = int(os.environ["RELAY_CHANNEL_ID"])
+STATS_CHANNEL_ID    = int(os.environ["STATS_CHANNEL_ID"])
+ADMIN_ROLE_ID       = int(os.environ["ADMIN_ROLE_ID"])
+ADMIN_CHANNEL_ID    = int(os.environ["ADMIN_CHANNEL_ID"])
+COMMANDS_CHANNEL_ID = int(os.environ["COMMANDS_CHANNEL_ID"])
+BOT_TOKEN           = os.environ["DISCORD_BOT_TOKEN"]
 
 REST_BASE = f"http://{os.environ['REST_HOST']}:{os.environ['REST_PORT']}/v1/api"
 REST_AUTH = httpx.BasicAuth(os.environ["REST_USER"], os.environ["REST_PASSWORD"])
@@ -86,9 +88,21 @@ def is_admin():
         if not isinstance(interaction.user, discord.Member):
             await interaction.response.send_message("Admin commands can only be used in the server.", ephemeral=True)
             return False
+        if interaction.channel_id != ADMIN_CHANNEL_ID:
+            await interaction.response.send_message(f"Admin commands can only be used in <#{ADMIN_CHANNEL_ID}>.", ephemeral=True)
+            return False
         role = discord.utils.get(interaction.user.roles, id=ADMIN_ROLE_ID)
         if role is None:
             await interaction.response.send_message("Admin role required.", ephemeral=True)
+            return False
+        return True
+    return app_commands.check(predicate)
+
+
+def in_commands_channel():
+    async def predicate(interaction: discord.Interaction) -> bool:
+        if interaction.channel_id != COMMANDS_CHANNEL_ID:
+            await interaction.response.send_message(f"This command can only be used in <#{COMMANDS_CHANNEL_ID}>.", ephemeral=True)
             return False
         return True
     return app_commands.check(predicate)
@@ -329,6 +343,7 @@ async def on_message(message):
 
 # ---------- Slash commands ----------
 @bot.tree.command(description="Show server status")
+@in_commands_channel()
 async def status(interaction: discord.Interaction):
     info, metrics = await rest.info(), await rest.metrics()
     embed = discord.Embed(title=info["servername"], color=COLOR_CHAT)
@@ -337,6 +352,7 @@ async def status(interaction: discord.Interaction):
 
 
 @bot.tree.command(description="List online players")
+@in_commands_channel()
 async def players(interaction: discord.Interaction):
     data = await rest.players()
     plist = data.get("players", [])
@@ -450,7 +466,7 @@ async def restart(interaction: discord.Interaction):
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.CheckFailure):
-        return  # is_admin()'s predicate already sent its own response
+        return  # predicate (is_admin/in_commands_channel) already sent its own response
 
     command_name = interaction.command.name if interaction.command else "?"
     log.exception("command error in /%s", command_name, exc_info=error)
