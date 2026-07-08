@@ -1,16 +1,334 @@
-﻿# This is a sample Python script.
+﻿import os
+import re
+import json
+import time
+import asyncio
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+import discord
+from discord import app_commands
+from discord.ext import commands, tasks
+import httpx
+from dotenv import load_dotenv
+
+load_dotenv()
+
+GUILD_ID          = int(os.environ["GUILD_ID"])
+RELAY_CHANNEL_ID  = int(os.environ["RELAY_CHANNEL_ID"])
+STATS_CHANNEL_ID  = int(os.environ["STATS_CHANNEL_ID"])
+ADMIN_ROLE_ID     = int(os.environ["ADMIN_ROLE_ID"])
+BOT_TOKEN         = os.environ["DISCORD_BOT_TOKEN"]
+
+REST_BASE = f"http://{os.environ['REST_HOST']}:{os.environ['REST_PORT']}/v1/api"
+REST_AUTH = httpx.BasicAuth(os.environ["REST_USER"], os.environ["REST_PASSWORD"])
+
+ACTIVITY_CHANNEL_ID = int(os.environ["ACTIVITY_CHANNEL_ID"])
+
+PACIFIC = ZoneInfo("America/Los_Angeles")
+
+CHAT_RE     = re.compile(r'\[CHAT\]\s*<(.+?)>\s*(.+)')
+JOIN_RE     = re.compile(r'\[LOG\]\s*(.+?) joined the server')
+LEAVE_RE    = re.compile(r'\[LOG\]\s*(.+?) left the server')
+TS_RE       = re.compile(r'^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]\s*(.*)')
+SHUTDOWN_RE = re.compile(r'Shutdown handler: initialize\.')
+VERSION_RE  = re.compile(r'Game version is (v[\d.]+)')
+
+COLOR_CHAT, COLOR_JOIN, COLOR_LEAVE = 0x5865F2, 0x57F287, 0xED4245
+COLOR_SHUTDOWN, COLOR_READY = 0xFEE75C, 0x57F287
 
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
+# ---------- REST client ----------
+class PalRestClient:
+    def __init__(self):
+        self.client = httpx.AsyncClient(auth=REST_AUTH, timeout=5.0)
+
+    async def get(self, path):
+        r = await self.client.get(f"{REST_BASE}/{path}")
+        r.raise_for_status()
+        return r.json()
+
+    async def post(self, path, payload=None):
+        r = await self.client.post(f"{REST_BASE}/{path}", json=payload or {})
+        r.raise_for_status()
+        return r.json() if r.content else {}
+
+    async def info(self):     return await self.get("info")
+    async def players(self):  return await self.get("players")
+    async def metrics(self):  return await self.get("metrics")
+    async def announce(self, message):    return await self.post("announce", {"message": message})
+    async def save(self):                 return await self.post("save")
+    async def kick(self, uid, message=""): return await self.post("kick", {"userid": uid, "message": message})
+    async def ban(self, uid, message=""):  return await self.post("ban", {"userid": uid, "message": message})
 
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
+rest = PalRestClient()
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+
+# ---------- Bot setup ----------
+intents = discord.Intents.default()
+intents.message_content = True  # must also be enabled in the Discord Developer Portal
+
+bot = commands.Bot(command_prefix=commands.when_mentioned, intents=intents)
+
+
+def is_admin():
+    async def predicate(interaction: discord.Interaction) -> bool:
+        role = discord.utils.get(interaction.user.roles, id=ADMIN_ROLE_ID)
+        if role is None:
+            await interaction.response.send_message("Admin role required.", ephemeral=True)
+            return False
+        return True
+    return app_commands.check(predicate)
+
+
+async def broadcast_embed(title, description, color, dt=None):
+    embed = discord.Embed(title=title, description=description, color=color)
+    if dt:
+        embed.timestamp = dt
+    channel = bot.get_channel(ACTIVITY_CHANNEL_ID)
+    if not channel:
+        print(f"broadcast failed: channel {ACTIVITY_CHANNEL_ID} not found")
+        return
+    try:
+        await channel.send(embed=embed)
+    except Exception as e:
+        print(f"broadcast failed: {e}")
+
+
+# ---------- Live stats embed (separate channel, pinned, edited in place) ----------
+stats_message_id = None  # cached once created, so we edit rather than re-send
+
+
+def get_ram_usage():
+    # Bot runs on the same box as the game server, so read system memory
+    # directly rather than via Palworld's REST API (which doesn't expose it).
+    meminfo = {}
+    with open("/proc/meminfo") as f:
+        for line in f:
+            key, value = line.split(":", 1)
+            meminfo[key] = int(value.strip().split()[0])  # kB
+    total_kb = meminfo["MemTotal"]
+    available_kb = meminfo["MemAvailable"]
+    used_gb = (total_kb - available_kb) / 1_048_576
+    total_gb = total_kb / 1_048_576
+    pct = round((used_gb / total_gb) * 100)
+    return f"{used_gb:.1f}/{total_gb:.1f} GB ({pct}%)"
+
+
+def build_stats_embed(info, metrics):
+    embed = discord.Embed(title=info["servername"], color=0x57F287)
+    embed.add_field(name="Players", value=f"{metrics['currentplayernum']}/{metrics['maxplayernum']}")
+    embed.add_field(name="FPS", value=metrics["serverfps"])
+    embed.add_field(name="Uptime", value=f"{metrics['uptime'] // 3600}h")
+    embed.add_field(name="Version", value=info["version"])
+    try:
+        embed.add_field(name="System RAM", value=get_ram_usage())
+    except Exception as e:
+        print(f"RAM read failed: {e}")
+    embed.timestamp = datetime.now(timezone.utc)
+    embed.set_footer(text="Last updated")
+    return embed
+
+
+async def update_stats_message():
+    global stats_message_id
+    channel = bot.get_channel(STATS_CHANNEL_ID)
+    if not channel:
+        return
+    try:
+        info, metrics = await rest.info(), await rest.metrics()
+        embed = build_stats_embed(info, metrics)
+
+        if stats_message_id:
+            try:
+                msg = await channel.fetch_message(stats_message_id)
+                await msg.edit(embed=embed)
+                return
+            except discord.NotFound:
+                stats_message_id = None  # message was deleted, fall through and recreate
+
+        # No cached ID (e.g. bot just restarted) — check pins for one we already made
+        # before creating a new one, so restarts don't spawn duplicate messages.
+        async for pinned in channel.pins():
+            if pinned.author.id == bot.user.id:
+                await pinned.edit(embed=embed)
+                stats_message_id = pinned.id
+                return
+
+        msg = await channel.send(embed=embed)
+        await msg.pin()
+        stats_message_id = msg.id
+    except Exception as e:
+        print(f"stats message update failed: {e}")
+
+
+@tasks.loop(minutes=1)
+async def stats_ticker():
+    # Periodic tick for FPS/uptime, since those don't have a discrete log event.
+    # Join/leave events also trigger an immediate update — see log_tailer below.
+    await update_stats_message()
+
+
+# ---------- Log tailing (same events the original relay.py already captures) ----------
+_log_tailer_task = None  # keeps a strong reference so asyncio doesn't GC it mid-run
+
+
+async def log_tailer():
+    proc = await asyncio.create_subprocess_exec(
+        "journalctl", "-u", "palworld", "-f", "-n", "0", "-o", "json", "--no-pager",
+        stdout=asyncio.subprocess.PIPE,
+    )
+    async for line in proc.stdout:
+        line = line.decode().strip()
+        if not line:
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        msg = entry.get("MESSAGE", "")
+        if isinstance(msg, list):
+            msg = " ".join(str(m) for m in msg)
+        if not isinstance(msg, str):
+            continue
+
+        micros = int(entry.get("__REALTIME_TIMESTAMP", 0))
+        dt = datetime.fromtimestamp(micros / 1_000_000, tz=timezone.utc).astimezone(PACIFIC)
+
+        ts_match = TS_RE.match(msg)
+        if ts_match:
+            _, rest_msg = ts_match.groups()
+            # Chat relay disabled — only capturing join/leave for now.
+            # if m := CHAT_RE.search(rest_msg):
+            #     await broadcast_embed("Message", f"**{m.group(1)}**: {m.group(2)}", COLOR_CHAT, dt)
+            if m := JOIN_RE.search(rest_msg):
+                await broadcast_embed(f"{m.group(1)} joined the server", None, COLOR_JOIN, dt)
+                await update_stats_message()
+            elif m := LEAVE_RE.search(rest_msg):
+                await broadcast_embed(f"{m.group(1)} left the server", None, COLOR_LEAVE, dt)
+                await update_stats_message()
+        else:
+            if SHUTDOWN_RE.search(msg):
+                await broadcast_embed("Server shutting down", None, COLOR_SHUTDOWN, dt)
+            elif m := VERSION_RE.search(msg):
+                await broadcast_embed("Server is online", f"Game version: `{m.group(1)}`", COLOR_READY, dt)
+
+
+# ---------- Discord -> game ----------
+@bot.event
+async def on_message(message):
+    if message.author.bot or message.channel.id != RELAY_CHANNEL_ID:
+        return
+    try:
+        await rest.announce(f"{message.author.display_name}: {message.content}")
+    except Exception as e:
+        print(f"announce failed: {e}")
+
+
+# ---------- Slash commands ----------
+@bot.tree.command(description="Show server status")
+async def status(interaction: discord.Interaction):
+    info, metrics = await rest.info(), await rest.metrics()
+    embed = discord.Embed(title=info["servername"], color=0x5865F2)
+    embed.add_field(name="Players", value=f"{metrics['currentplayernum']}/{metrics['maxplayernum']}")
+    embed.add_field(name="FPS", value=metrics["serverfps"])
+    embed.add_field(name="Uptime", value=f"{metrics['uptime'] // 3600}h")
+    embed.add_field(name="Version", value=info["version"])
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+@bot.tree.command(description="List online players")
+async def players(interaction: discord.Interaction):
+    data = await rest.players()
+    plist = data.get("players", [])
+    if not plist:
+        await interaction.response.send_message("No one online.")
+        return
+    lines = [f"**{p['name']}** — Lv.{p['level']} ({p['ping']}ms)" for p in plist]
+    await interaction.response.send_message("\n".join(lines))
+
+
+@bot.tree.command(description="Force-save the world")
+@is_admin()
+async def save(interaction: discord.Interaction):
+    await rest.save()
+    await interaction.response.send_message("World saved.")
+
+
+@bot.tree.command(description="Kick a player by SteamID")
+@is_admin()
+async def kick(interaction: discord.Interaction, steamid: str, reason: str = ""):
+    await rest.kick(steamid, reason)
+    await interaction.response.send_message(f"Kicked `{steamid}`.")
+
+
+@bot.tree.command(description="Ban a player by SteamID")
+@is_admin()
+async def ban(interaction: discord.Interaction, steamid: str, reason: str = ""):
+    await rest.ban(steamid, reason)
+    await interaction.response.send_message(f"Banned `{steamid}`.")
+
+
+@bot.tree.command(description="Send an in-game announcement")
+@is_admin()
+async def broadcast(interaction: discord.Interaction, message: str):
+    await rest.announce(message)
+    await interaction.response.send_message("Sent.")
+
+
+@bot.tree.command(description="Restart the Palworld service")
+@is_admin()
+async def restart(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="Restarting Palworld server",
+        color=0xFEE75C,
+    )
+    embed.add_field(name="Status", value="Sending restart command\u2026")
+    await interaction.response.send_message(embed=embed)
+
+    proc = await asyncio.create_subprocess_exec("sudo", "systemctl", "restart", "palworld")
+    await proc.wait()
+
+    embed.set_field_at(0, name="Status", value="Waiting for server to come back online\u2026")
+    await interaction.edit_original_response(embed=embed)
+
+    start = time.monotonic()
+    timeout = 120
+    online = False
+    while time.monotonic() - start < timeout:
+        try:
+            await rest.info()
+            online = True
+            break
+        except Exception:
+            await asyncio.sleep(5)
+
+    elapsed = int(time.monotonic() - start)
+    if online:
+        embed.title = "Server restarted"
+        embed.color = 0x57F287
+        embed.set_field_at(0, name="Status", value=f"Back online after {elapsed}s")
+    else:
+        embed.title = "Restart timed out"
+        embed.color = 0xED4245
+        embed.set_field_at(
+            0, name="Status",
+            value=f"No response after {timeout}s \u2014 check `journalctl -u palworld`",
+        )
+    await interaction.edit_original_response(embed=embed)
+
+
+@bot.event
+async def on_ready():
+    guild = discord.Object(id=GUILD_ID)
+    bot.tree.copy_global_to(guild=guild)
+    await bot.tree.sync(guild=guild)
+    global _log_tailer_task
+    _log_tailer_task = asyncio.create_task(log_tailer())
+    stats_ticker.start()
+    print(f"Logged in as {bot.user}")
+
+
+bot.run(BOT_TOKEN)
