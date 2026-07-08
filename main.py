@@ -28,6 +28,7 @@ REST_BASE = f"http://{os.environ['REST_HOST']}:{os.environ['REST_PORT']}/v1/api"
 REST_AUTH = httpx.BasicAuth(os.environ["REST_USER"], os.environ["REST_PASSWORD"])
 
 ACTIVITY_CHANNEL_ID = int(os.environ["ACTIVITY_CHANNEL_ID"])
+ALERTS_CHANNEL_ID   = int(os.environ["ALERTS_CHANNEL_ID"])
 
 _ram_restart_threshold_env = os.environ.get("RAM_RESTART_THRESHOLD_PCT")
 RAM_RESTART_THRESHOLD_PCT = float(_ram_restart_threshold_env) if _ram_restart_threshold_env else None
@@ -93,13 +94,13 @@ def is_admin():
     return app_commands.check(predicate)
 
 
-async def broadcast_embed(title, description, color, dt=None):
+async def broadcast_embed(title, description, color, dt=None, channel_id=ACTIVITY_CHANNEL_ID):
     embed = discord.Embed(title=title, description=description, color=color)
     if dt:
         embed.timestamp = dt
-    channel = bot.get_channel(ACTIVITY_CHANNEL_ID)
+    channel = bot.get_channel(channel_id)
     if not isinstance(channel, discord.TextChannel):
-        log.warning("broadcast failed: channel %s not found or not a text channel", ACTIVITY_CHANNEL_ID)
+        log.warning("broadcast failed: channel %s not found or not a text channel", channel_id)
         return
     try:
         await channel.send(embed=embed)
@@ -209,6 +210,7 @@ async def auto_restart_sequence(pct):
         "High RAM usage detected",
         f"RAM usage at {pct}% — restarting server in {warning_sec}s.",
         COLOR_SHUTDOWN,
+        channel_id=ALERTS_CHANNEL_ID,
     )
     try:
         await rest.announce(f"Server restarting in {warning_sec}s due to high memory usage")
@@ -223,11 +225,11 @@ async def auto_restart_sequence(pct):
     finally:
         _auto_restart_in_progress = False
 
-    channel = bot.get_channel(ACTIVITY_CHANNEL_ID)
+    channel = bot.get_channel(ALERTS_CHANNEL_ID)
     if isinstance(channel, discord.TextChannel):
         await channel.send(embed=embed)
     else:
-        log.warning("auto-restart result broadcast failed: channel %s not found or not a text channel", ACTIVITY_CHANNEL_ID)
+        log.warning("auto-restart result broadcast failed: channel %s not found or not a text channel", ALERTS_CHANNEL_ID)
 
 
 def _log_auto_restart_failure(task):
@@ -304,10 +306,10 @@ async def log_tailer():
                         await update_stats_message()
                 else:
                     if SHUTDOWN_RE.search(msg):
-                        await broadcast_embed("Server shutting down", None, COLOR_SHUTDOWN, dt)
+                        await broadcast_embed("Server shutting down", None, COLOR_SHUTDOWN, dt, channel_id=ALERTS_CHANNEL_ID)
                     elif m := VERSION_RE.search(msg):
                         if not _auto_restart_in_progress:
-                            await broadcast_embed("Server is online", f"Game version: `{m.group(1)}`", COLOR_READY, dt)
+                            await broadcast_embed("Server is online", f"Game version: `{m.group(1)}`", COLOR_READY, dt, channel_id=ALERTS_CHANNEL_ID)
             log.warning("log tailer: journalctl stream ended, restarting in 5s")
         except Exception:
             log.exception("log tailer crashed, restarting in 5s")

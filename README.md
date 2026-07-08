@@ -8,16 +8,18 @@ actions (save, kick, ban, broadcast, restart).
 
 - **Palworld REST API** (`REST_HOST`/`REST_PORT`) — used for server info, player list, metrics,
   announcements, saves, kicks, and bans.
-- **`journalctl -u palworld -f`** — tailed for chat/join/leave/shutdown/version log lines, which are
-  posted to `ACTIVITY_CHANNEL_ID` as embeds.
+- **`journalctl -u palworld -f`** — tailed for chat/join/leave/shutdown/version log lines. Join/leave
+  and chat relay are posted to `ACTIVITY_CHANNEL_ID` as embeds; server shutdown and server-online
+  messages go to `ALERTS_CHANNEL_ID` instead.
 - **Stats embed** — a single pinned message in `STATS_CHANNEL_ID`, edited in place every minute (and
   on join/leave) with player count, FPS, uptime, version, and host system RAM usage (read from
   `/proc/meminfo`, so this must run on Linux, on the same box as the game server).
 - **RAM auto-restart** (optional) — if `RAM_RESTART_THRESHOLD_PCT` is set, the stats ticker
   restarts the `palworld` service whenever host RAM usage crosses that percentage. Players get
-  a Discord activity-channel warning and an in-game announcement `RAM_RESTART_WARNING_SEC`
+  an `ALERTS_CHANNEL_ID` warning and an in-game announcement `RAM_RESTART_WARNING_SEC`
   (default 60s) before the restart fires, and a `RAM_RESTART_COOLDOWN_MIN` (default 15min)
-  cooldown prevents repeat triggers while the server is still booting back up.
+  cooldown prevents repeat triggers while the server is still booting back up. The restart result
+  is also posted to `ALERTS_CHANNEL_ID`.
 - **Relay channel** — messages posted in `RELAY_CHANNEL_ID` are forwarded to the game via the REST
   announce endpoint.
 
