@@ -13,6 +13,11 @@ actions (save, kick, ban, broadcast, restart).
 - **Stats embed** — a single pinned message in `STATS_CHANNEL_ID`, edited in place every minute (and
   on join/leave) with player count, FPS, uptime, version, and host system RAM usage (read from
   `/proc/meminfo`, so this must run on Linux, on the same box as the game server).
+- **RAM auto-restart** (optional) — if `RAM_RESTART_THRESHOLD_PCT` is set, the stats ticker
+  restarts the `palworld` service whenever host RAM usage crosses that percentage. Players get
+  a Discord activity-channel warning and an in-game announcement `RAM_RESTART_WARNING_SEC`
+  (default 60s) before the restart fires, and a `RAM_RESTART_COOLDOWN_MIN` (default 15min)
+  cooldown prevents repeat triggers while the server is still booting back up.
 - **Relay channel** — messages posted in `RELAY_CHANNEL_ID` are forwarded to the game via the REST
   announce endpoint.
 
@@ -27,6 +32,8 @@ cp .env.example .env
 
 Fill in `.env` with your bot token, guild/channel/role IDs, and Palworld REST credentials, then
 restrict its permissions (`chmod 600 .env` on Linux — it holds secrets).
+`RAM_RESTART_THRESHOLD_PCT` and its companions are optional — leave them unset to keep
+auto-restart disabled.
 
 You can edit and install dependencies on any OS, but the bot itself must **run** on Linux (see below).
 
