@@ -28,6 +28,8 @@ cp .env.example .env
 Fill in `.env` with your bot token, guild/channel/role IDs, and Palworld REST credentials, then
 restrict its permissions (`chmod 600 .env` on Linux — it holds secrets).
 
+You can edit and install dependencies on any OS, but the bot itself must **run** on Linux (see below).
+
 ## Running
 
 ```
@@ -36,10 +38,14 @@ python main.py
 
 Slash commands are synced to `GUILD_ID` on startup. Admin-only commands (`save`, `kick`, `ban`,
 `broadcast`, `restart`) require `ADMIN_ROLE_ID`. `restart` and the RAM reader shell out to
-`systemctl`/`/proc`, so the bot is expected to run on the same Linux host as the Palworld service.
+`systemctl`/`/proc`, and `log_tailer` shells out to `journalctl`, so the bot must run on the same
+Linux host as the Palworld service — it will not run as-is on Windows.
 
 ## Requirements
 
 - Python 3.13
+- Dependencies pinned in `requirements.txt` (discord.py>=2.7.1, httpx, python-dotenv, plus
+  transitive pins). Note: discord.py 2.7.1's published support range tops out at Python 3.12, so
+  watch for install/compatibility issues on 3.13.
 - A running Palworld dedicated server with the REST API enabled
 - A Discord bot application with `message_content` intent enabled in the Developer Portal
