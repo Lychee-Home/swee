@@ -3,6 +3,7 @@ import re
 import json
 import time
 import asyncio
+import logging
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -13,6 +14,8 @@ import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
+
+log = logging.getLogger("swee")
 
 GUILD_ID          = int(os.environ["GUILD_ID"])
 RELAY_CHANNEL_ID  = int(os.environ["RELAY_CHANNEL_ID"])
@@ -90,16 +93,17 @@ async def broadcast_embed(title, description, color, dt=None):
         embed.timestamp = dt
     channel = bot.get_channel(ACTIVITY_CHANNEL_ID)
     if not isinstance(channel, discord.TextChannel):
-        print(f"broadcast failed: channel {ACTIVITY_CHANNEL_ID} not found or not a text channel")
+        log.warning("broadcast failed: channel %s not found or not a text channel", ACTIVITY_CHANNEL_ID)
         return
     try:
         await channel.send(embed=embed)
-    except Exception as e:
-        print(f"broadcast failed: {e}")
+    except Exception:
+        log.exception("broadcast failed")
 
 
 # ---------- Live stats embed (separate channel, pinned, edited in place) ----------
 stats_message_id = None  # cached once created, so we edit rather than re-send
+_stats_lock = asyncio.Lock()  # serializes concurrent callers (ticker + join/leave events)
 
 
 def get_ram_usage():
@@ -131,8 +135,8 @@ def build_stats_embed(info, metrics):
     add_status_fields(embed, info, metrics)
     try:
         embed.add_field(name="System RAM", value=get_ram_usage())
-    except Exception as e:
-        print(f"RAM read failed: {e}")
+    except Exception:
+        log.exception("RAM read failed")
     embed.timestamp = datetime.now(timezone.utc)
     embed.set_footer(text="Last updated")
     return embed
@@ -142,35 +146,36 @@ async def update_stats_message():
     global stats_message_id
     channel = bot.get_channel(STATS_CHANNEL_ID)
     if not isinstance(channel, discord.TextChannel):
-        print(f"stats update failed: channel {STATS_CHANNEL_ID} not found or not a text channel")
+        log.warning("stats update failed: channel %s not found or not a text channel", STATS_CHANNEL_ID)
         return
     # Only called after on_ready starts the ticker/log tailer, so bot.user is always set.
     assert bot.user is not None
-    try:
-        info, metrics = await rest.info(), await rest.metrics()
-        embed = build_stats_embed(info, metrics)
+    async with _stats_lock:
+        try:
+            info, metrics = await rest.info(), await rest.metrics()
+            embed = build_stats_embed(info, metrics)
 
-        if stats_message_id:
-            try:
-                msg = await channel.fetch_message(stats_message_id)
-                await msg.edit(embed=embed)
-                return
-            except discord.NotFound:
-                stats_message_id = None  # message was deleted, fall through and recreate
+            if stats_message_id:
+                try:
+                    msg = await channel.fetch_message(stats_message_id)
+                    await msg.edit(embed=embed)
+                    return
+                except discord.NotFound:
+                    stats_message_id = None  # message was deleted, fall through and recreate
 
-        # No cached ID (e.g. bot just restarted) — check pins for one we already made
-        # before creating a new one, so restarts don't spawn duplicate messages.
-        async for pinned in channel.pins():
-            if pinned.author.id == bot.user.id:
-                await pinned.edit(embed=embed)
-                stats_message_id = pinned.id
-                return
+            # No cached ID (e.g. bot just restarted) — check pins for one we already made
+            # before creating a new one, so restarts don't spawn duplicate messages.
+            async for pinned in channel.pins():
+                if pinned.author.id == bot.user.id:
+                    await pinned.edit(embed=embed)
+                    stats_message_id = pinned.id
+                    return
 
-        msg = await channel.send(embed=embed)
-        await msg.pin()
-        stats_message_id = msg.id
-    except Exception as e:
-        print(f"stats message update failed: {e}")
+            msg = await channel.send(embed=embed)
+            await msg.pin()
+            stats_message_id = msg.id
+        except Exception:
+            log.exception("stats message update failed")
 
 
 @tasks.loop(minutes=1)
@@ -226,9 +231,9 @@ async def log_tailer():
                         await broadcast_embed("Server shutting down", None, COLOR_SHUTDOWN, dt)
                     elif m := VERSION_RE.search(msg):
                         await broadcast_embed("Server is online", f"Game version: `{m.group(1)}`", COLOR_READY, dt)
-            print("log tailer: journalctl stream ended, restarting in 5s")
-        except Exception as e:
-            print(f"log tailer crashed: {e}, restarting in 5s")
+            log.warning("log tailer: journalctl stream ended, restarting in 5s")
+        except Exception:
+            log.exception("log tailer crashed, restarting in 5s")
         await asyncio.sleep(5)
 
 
@@ -239,8 +244,8 @@ async def on_message(message):
         return
     try:
         await rest.announce(f"{message.author.display_name}: {message.content}")
-    except Exception as e:
-        print(f"announce failed: {e}")
+    except Exception:
+        log.exception("announce failed")
 
 
 # ---------- Slash commands ----------
@@ -296,7 +301,7 @@ async def broadcast(interaction: discord.Interaction, message: str):
 async def restart(interaction: discord.Interaction):
     embed = discord.Embed(
         title="Restarting Palworld server",
-        color=0xFEE75C,
+        color=COLOR_SHUTDOWN,
     )
     embed.add_field(name="Status", value="Sending restart command\u2026")
     await interaction.response.send_message(embed=embed)
@@ -321,11 +326,11 @@ async def restart(interaction: discord.Interaction):
     elapsed = int(time.monotonic() - start)
     if online:
         embed.title = "Server restarted"
-        embed.color = 0x57F287
+        embed.color = COLOR_READY
         embed.set_field_at(0, name="Status", value=f"Back online after {elapsed}s")
     else:
         embed.title = "Restart timed out"
-        embed.color = 0xED4245
+        embed.color = COLOR_LEAVE
         embed.set_field_at(
             0, name="Status",
             value=f"No response after {timeout}s \u2014 check `journalctl -u palworld`",
@@ -339,7 +344,7 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
         return  # is_admin()'s predicate already sent its own response
 
     command_name = interaction.command.name if interaction.command else "?"
-    print(f"command error in /{command_name}: {error}")
+    log.exception("command error in /%s", command_name, exc_info=error)
 
     message = "Something went wrong talking to the server."
     if interaction.response.is_done():
@@ -356,7 +361,20 @@ async def on_ready():
     global _log_tailer_task
     _log_tailer_task = asyncio.create_task(log_tailer())
     stats_ticker.start()
-    print(f"Logged in as {bot.user}")
+    log.info("Logged in as %s", bot.user)
 
 
-bot.run(BOT_TOKEN)
+async def main():
+    discord.utils.setup_logging()
+    async with bot:
+        await bot.start(BOT_TOKEN)
+        # bot.start() returns once the bot is closed (e.g. Ctrl+C) — clean up
+        # the background task and REST client rather than leaving them dangling.
+        stats_ticker.cancel()
+        if _log_tailer_task:
+            _log_tailer_task.cancel()
+        await rest.client.aclose()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
