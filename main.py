@@ -384,9 +384,14 @@ def check_palworld_service():
         log.error("palworld.service not found (LoadState=%s) — check the unit is installed", load_state or "unknown")
         return False
 
-    sudo_check = subprocess.run(["sudo", "-n", "true"], capture_output=True)
+    sudo_check = subprocess.run(
+        ["sudo", "-n", "-l", "systemctl", "restart", "palworld"], capture_output=True,
+    )
     if sudo_check.returncode != 0:
-        log.error("passwordless sudo not configured for this user — /restart and RAM auto-restart will hang")
+        log.error(
+            "passwordless sudo for 'systemctl restart palworld' not configured for this user "
+            "— /restart and RAM auto-restart will hang"
+        )
         return False
 
     return True
