@@ -110,6 +110,7 @@ async def broadcast_embed(title, description, color, dt=None):
 stats_message_id = None  # cached once created, so we edit rather than re-send
 _stats_lock = asyncio.Lock()  # serializes concurrent callers (ticker + join/leave events)
 _last_auto_restart = None  # time.monotonic() of the last auto-restart trigger, or None
+_auto_restart_task = None  # keeps a strong reference so asyncio doesn't GC it mid-run
 
 
 def read_ram_stats():
@@ -221,6 +222,14 @@ async def auto_restart_sequence(pct):
         log.warning("auto-restart result broadcast failed: channel %s not found or not a text channel", ACTIVITY_CHANNEL_ID)
 
 
+def _log_auto_restart_failure(task):
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        log.error("auto-restart sequence failed", exc_info=exc)
+
+
 @tasks.loop(minutes=1)
 async def stats_ticker():
     # Periodic tick for FPS/uptime, since those don't have a discrete log event.
@@ -230,7 +239,7 @@ async def stats_ticker():
     if RAM_RESTART_THRESHOLD_PCT is None:
         return
 
-    global _last_auto_restart
+    global _last_auto_restart, _auto_restart_task
     try:
         _, _, pct = read_ram_stats()
     except Exception:
@@ -240,7 +249,8 @@ async def stats_ticker():
     now = time.monotonic()
     if should_auto_restart(pct, RAM_RESTART_THRESHOLD_PCT, _last_auto_restart, now, RAM_RESTART_COOLDOWN_MIN):
         _last_auto_restart = now
-        asyncio.create_task(auto_restart_sequence(pct))
+        _auto_restart_task = asyncio.create_task(auto_restart_sequence(pct))
+        _auto_restart_task.add_done_callback(_log_auto_restart_failure)
 
 
 # ---------- Log tailing (same events the original relay.py already captures) ----------
