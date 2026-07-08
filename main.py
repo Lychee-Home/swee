@@ -27,7 +27,6 @@ ACTIVITY_CHANNEL_ID = int(os.environ["ACTIVITY_CHANNEL_ID"])
 
 PACIFIC = ZoneInfo("America/Los_Angeles")
 
-CHAT_RE     = re.compile(r'\[CHAT\]\s*<(.+?)>\s*(.+)')
 JOIN_RE     = re.compile(r'\[LOG\]\s*(.+?) joined the server')
 LEAVE_RE    = re.compile(r'\[LOG\]\s*(.+?) left the server')
 TS_RE       = re.compile(r'^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]\s*(.*)')
@@ -74,6 +73,9 @@ bot = commands.Bot(command_prefix=commands.when_mentioned, intents=intents)
 
 def is_admin():
     async def predicate(interaction: discord.Interaction) -> bool:
+        if not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message("Admin commands can only be used in the server.", ephemeral=True)
+            return False
         role = discord.utils.get(interaction.user.roles, id=ADMIN_ROLE_ID)
         if role is None:
             await interaction.response.send_message("Admin role required.", ephemeral=True)
@@ -87,8 +89,8 @@ async def broadcast_embed(title, description, color, dt=None):
     if dt:
         embed.timestamp = dt
     channel = bot.get_channel(ACTIVITY_CHANNEL_ID)
-    if not channel:
-        print(f"broadcast failed: channel {ACTIVITY_CHANNEL_ID} not found")
+    if not isinstance(channel, discord.TextChannel):
+        print(f"broadcast failed: channel {ACTIVITY_CHANNEL_ID} not found or not a text channel")
         return
     try:
         await channel.send(embed=embed)
@@ -116,12 +118,17 @@ def get_ram_usage():
     return f"{used_gb:.1f}/{total_gb:.1f} GB ({pct}%)"
 
 
-def build_stats_embed(info, metrics):
-    embed = discord.Embed(title=info["servername"], color=0x57F287)
+def add_status_fields(embed, info, metrics):
     embed.add_field(name="Players", value=f"{metrics['currentplayernum']}/{metrics['maxplayernum']}")
     embed.add_field(name="FPS", value=metrics["serverfps"])
     embed.add_field(name="Uptime", value=f"{metrics['uptime'] // 3600}h")
     embed.add_field(name="Version", value=info["version"])
+    return embed
+
+
+def build_stats_embed(info, metrics):
+    embed = discord.Embed(title=info["servername"], color=COLOR_READY)
+    add_status_fields(embed, info, metrics)
     try:
         embed.add_field(name="System RAM", value=get_ram_usage())
     except Exception as e:
@@ -134,8 +141,11 @@ def build_stats_embed(info, metrics):
 async def update_stats_message():
     global stats_message_id
     channel = bot.get_channel(STATS_CHANNEL_ID)
-    if not channel:
+    if not isinstance(channel, discord.TextChannel):
+        print(f"stats update failed: channel {STATS_CHANNEL_ID} not found or not a text channel")
         return
+    # Only called after on_ready starts the ticker/log tailer, so bot.user is always set.
+    assert bot.user is not None
     try:
         info, metrics = await rest.info(), await rest.metrics()
         embed = build_stats_embed(info, metrics)
@@ -175,45 +185,51 @@ _log_tailer_task = None  # keeps a strong reference so asyncio doesn't GC it mid
 
 
 async def log_tailer():
-    proc = await asyncio.create_subprocess_exec(
-        "journalctl", "-u", "palworld", "-f", "-n", "0", "-o", "json", "--no-pager",
-        stdout=asyncio.subprocess.PIPE,
-    )
-    async for line in proc.stdout:
-        line = line.decode().strip()
-        if not line:
-            continue
+    # journalctl can exit on its own (log rotation, service hiccup, etc.); without
+    # this loop a single exit would silently kill the relay for good.
+    while True:
         try:
-            entry = json.loads(line)
-        except json.JSONDecodeError:
-            continue
+            proc = await asyncio.create_subprocess_exec(
+                "journalctl", "-u", "palworld", "-f", "-n", "0", "-o", "json", "--no-pager",
+                stdout=asyncio.subprocess.PIPE,
+            )
+            assert proc.stdout is not None
+            async for line in proc.stdout:
+                line = line.decode().strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
 
-        msg = entry.get("MESSAGE", "")
-        if isinstance(msg, list):
-            msg = " ".join(str(m) for m in msg)
-        if not isinstance(msg, str):
-            continue
+                msg = entry.get("MESSAGE", "")
+                if isinstance(msg, list):
+                    msg = " ".join(str(m) for m in msg)
+                if not isinstance(msg, str):
+                    continue
 
-        micros = int(entry.get("__REALTIME_TIMESTAMP", 0))
-        dt = datetime.fromtimestamp(micros / 1_000_000, tz=timezone.utc).astimezone(PACIFIC)
+                micros = int(entry.get("__REALTIME_TIMESTAMP", 0))
+                dt = datetime.fromtimestamp(micros / 1_000_000, tz=timezone.utc).astimezone(PACIFIC)
 
-        ts_match = TS_RE.match(msg)
-        if ts_match:
-            _, rest_msg = ts_match.groups()
-            # Chat relay disabled — only capturing join/leave for now.
-            # if m := CHAT_RE.search(rest_msg):
-            #     await broadcast_embed("Message", f"**{m.group(1)}**: {m.group(2)}", COLOR_CHAT, dt)
-            if m := JOIN_RE.search(rest_msg):
-                await broadcast_embed(f"{m.group(1)} joined the server", None, COLOR_JOIN, dt)
-                await update_stats_message()
-            elif m := LEAVE_RE.search(rest_msg):
-                await broadcast_embed(f"{m.group(1)} left the server", None, COLOR_LEAVE, dt)
-                await update_stats_message()
-        else:
-            if SHUTDOWN_RE.search(msg):
-                await broadcast_embed("Server shutting down", None, COLOR_SHUTDOWN, dt)
-            elif m := VERSION_RE.search(msg):
-                await broadcast_embed("Server is online", f"Game version: `{m.group(1)}`", COLOR_READY, dt)
+                ts_match = TS_RE.match(msg)
+                if ts_match:
+                    _, rest_msg = ts_match.groups()
+                    if m := JOIN_RE.search(rest_msg):
+                        await broadcast_embed(f"{m.group(1)} joined the server", None, COLOR_JOIN, dt)
+                        await update_stats_message()
+                    elif m := LEAVE_RE.search(rest_msg):
+                        await broadcast_embed(f"{m.group(1)} left the server", None, COLOR_LEAVE, dt)
+                        await update_stats_message()
+                else:
+                    if SHUTDOWN_RE.search(msg):
+                        await broadcast_embed("Server shutting down", None, COLOR_SHUTDOWN, dt)
+                    elif m := VERSION_RE.search(msg):
+                        await broadcast_embed("Server is online", f"Game version: `{m.group(1)}`", COLOR_READY, dt)
+            print("log tailer: journalctl stream ended, restarting in 5s")
+        except Exception as e:
+            print(f"log tailer crashed: {e}, restarting in 5s")
+        await asyncio.sleep(5)
 
 
 # ---------- Discord -> game ----------
@@ -231,11 +247,8 @@ async def on_message(message):
 @bot.tree.command(description="Show server status")
 async def status(interaction: discord.Interaction):
     info, metrics = await rest.info(), await rest.metrics()
-    embed = discord.Embed(title=info["servername"], color=0x5865F2)
-    embed.add_field(name="Players", value=f"{metrics['currentplayernum']}/{metrics['maxplayernum']}")
-    embed.add_field(name="FPS", value=metrics["serverfps"])
-    embed.add_field(name="Uptime", value=f"{metrics['uptime'] // 3600}h")
-    embed.add_field(name="Version", value=info["version"])
+    embed = discord.Embed(title=info["servername"], color=COLOR_CHAT)
+    add_status_fields(embed, info, metrics)
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
@@ -318,6 +331,21 @@ async def restart(interaction: discord.Interaction):
             value=f"No response after {timeout}s \u2014 check `journalctl -u palworld`",
         )
     await interaction.edit_original_response(embed=embed)
+
+
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.CheckFailure):
+        return  # is_admin()'s predicate already sent its own response
+
+    command_name = interaction.command.name if interaction.command else "?"
+    print(f"command error in /{command_name}: {error}")
+
+    message = "Something went wrong talking to the server."
+    if interaction.response.is_done():
+        await interaction.followup.send(message, ephemeral=True)
+    else:
+        await interaction.response.send_message(message, ephemeral=True)
 
 
 @bot.event
