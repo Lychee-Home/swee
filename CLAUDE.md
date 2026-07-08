@@ -4,21 +4,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-This is a brand-new, empty project scaffolded by PyCharm. It currently contains only a placeholder
-`main.py` (the default PyCharm "Hi" sample script) and no real application code, dependencies, tests,
-or build tooling yet.
+`swee` is a single-file Discord bot (`main.py`) that bridges a Palworld dedicated server with a
+Discord guild: it relays chat/join/leave activity from the server's journalctl logs, keeps a
+live-updating stats embed pinned in a channel, and exposes slash commands for status checks and
+admin actions (save, kick, ban, broadcast, restart) via Palworld's REST API. See `README.md` for
+architecture and setup details.
 
 - Python 3.13 (see `.idea/misc.xml` for the configured interpreter, named `swee`)
-- A `.venv` virtual environment exists at the repo root but has no packages installed beyond the
-  standard library
-- There is no `requirements.txt`, `pyproject.toml`, or `setup.py` — add one as soon as the project
-  gains real dependencies
-- There are no tests and no test runner configured yet
-- There is no git history yet (no commits)
+- Dependencies are pinned in `requirements.txt` (discord.py, httpx, python-dotenv, plus transitive
+  requests/urllib3/certifi/idna/charset-normalizer pins); install with `pip install -r requirements.txt`
+  into the `.venv` at the repo root
+- Configuration is via environment variables loaded from a `.env` file (see `.env.example` for the
+  full list — bot token, guild/channel/role IDs, Palworld REST credentials)
+- There are no automated tests or test runner configured yet
+- The bot assumes it runs on the same Linux host as the Palworld server (it shells out to
+  `journalctl`/`systemctl` and reads `/proc/meminfo` directly) — it will not run as-is on Windows
 
 ## Working in this repo
 
-Since there is no established architecture, framework, or convention yet, do not assume any
-particular structure (e.g. src layout, package name, CLI framework) — ask the user or infer it from
-their first substantive request. When dependencies or a test suite are introduced, update this file
-with the actual run/build/lint/test commands.
+- All bot logic currently lives in `main.py`; there's no package structure yet. Ask the user before
+  introducing one (e.g. splitting into modules) rather than assuming it's wanted.
+- When adding dependencies, add them to `requirements.txt`.
+- When adding a test suite or lint tooling, update this file with the actual run/build/lint/test
+  commands.
