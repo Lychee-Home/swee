@@ -28,6 +28,11 @@ REST_AUTH = httpx.BasicAuth(os.environ["REST_USER"], os.environ["REST_PASSWORD"]
 
 ACTIVITY_CHANNEL_ID = int(os.environ["ACTIVITY_CHANNEL_ID"])
 
+_ram_restart_threshold_env = os.environ.get("RAM_RESTART_THRESHOLD_PCT")
+RAM_RESTART_THRESHOLD_PCT = float(_ram_restart_threshold_env) if _ram_restart_threshold_env else None
+RAM_RESTART_COOLDOWN_MIN = float(os.environ.get("RAM_RESTART_COOLDOWN_MIN", "15"))
+RAM_RESTART_WARNING_SEC = float(os.environ.get("RAM_RESTART_WARNING_SEC", "60"))
+
 PACIFIC = ZoneInfo("America/Los_Angeles")
 
 JOIN_RE     = re.compile(r'\[LOG\]\s*(.+?) joined the server')
@@ -106,7 +111,7 @@ stats_message_id = None  # cached once created, so we edit rather than re-send
 _stats_lock = asyncio.Lock()  # serializes concurrent callers (ticker + join/leave events)
 
 
-def get_ram_usage():
+def read_ram_stats():
     # Bot runs on the same box as the game server, so read system memory
     # directly rather than via Palworld's REST API (which doesn't expose it).
     meminfo = {}
@@ -119,7 +124,22 @@ def get_ram_usage():
     used_gb = (total_kb - available_kb) / 1_048_576
     total_gb = total_kb / 1_048_576
     pct = round((used_gb / total_gb) * 100)
+    return used_gb, total_gb, pct
+
+
+def get_ram_usage():
+    used_gb, total_gb, pct = read_ram_stats()
     return f"{used_gb:.1f}/{total_gb:.1f} GB ({pct}%)"
+
+
+def should_auto_restart(pct, threshold_pct, last_restart_monotonic, now_monotonic, cooldown_min):
+    if threshold_pct is None:
+        return False
+    if pct < threshold_pct:
+        return False
+    if last_restart_monotonic is None:
+        return True
+    return now_monotonic - last_restart_monotonic >= cooldown_min * 60
 
 
 def add_status_fields(embed, info, metrics):
