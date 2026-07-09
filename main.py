@@ -135,6 +135,7 @@ _auto_restart_in_progress = False  # suppresses log_tailer's own "Server is onli
 PLAYER_HISTORY_PATH = "player_history.json"
 player_history = {}   # userId -> {"name": str, "last_seen": ISO8601 str}
 online_players = {}   # display name -> userId, refreshed on join/leave/tick
+session_started = {}  # display name -> ISO8601 join timestamp, cleared on leave (not persisted)
 # Safe without _stats_lock only because these dicts are never mutated across an `await`
 # (asyncio is single-threaded); if that changes, guard the mutation with _stats_lock.
 
@@ -166,6 +167,7 @@ async def record_join(name, dt):
         if p["name"] == name:
             uid = p["userId"]
             online_players[name] = uid
+            session_started[name] = dt.isoformat()
             player_history[uid] = {"name": name, "last_seen": dt.isoformat()}
             player_history.pop(f"name:{name}", None)  # supersede any stale fallback-key entry
             save_player_history()
@@ -174,6 +176,7 @@ async def record_join(name, dt):
 
 async def record_leave(name, dt):
     uid = online_players.pop(name, None)
+    session_started.pop(name, None)
     if uid is None:
         uid = next((k for k, v in player_history.items() if v["name"] == name), None)
     if uid is None:
@@ -186,9 +189,13 @@ async def record_leave(name, dt):
 def refresh_online_players(players_list):
     online_players.clear()
     now_iso = datetime.now(timezone.utc).astimezone(PACIFIC).isoformat()
+    current_names = {p["name"] for p in players_list}
+    for stale_name in set(session_started) - current_names:
+        session_started.pop(stale_name, None)
     for p in players_list:
         uid = p["userId"]
         online_players[p["name"]] = uid
+        session_started.setdefault(p["name"], now_iso)
         player_history[uid] = {"name": p["name"], "last_seen": now_iso}
         player_history.pop(f"name:{p['name']}", None)  # supersede any stale fallback-key entry
     save_player_history()
@@ -205,10 +212,19 @@ def offline_entries_from_history(history, online_ids):
     return entries
 
 
-def format_online_field(players):
+def format_online_field(players, session_started):
     if not players:
         return "No one online."
-    return "\n".join(f"**{p['name']}** — Lv.{p['level']} ({round(p['ping'])}ms)" for p in players)
+    lines = []
+    for p in players:
+        joined_iso = session_started.get(p["name"])
+        if joined_iso:
+            ts = int(datetime.fromisoformat(joined_iso).timestamp())
+            when = f"<t:{ts}:R>"
+        else:
+            when = "just now"
+        lines.append(f"**{p['name']}** — Lv.{p['level']} — {when}")
+    return "\n".join(lines)
 
 
 def format_offline_field(entries, limit):
@@ -252,7 +268,7 @@ def should_auto_restart(pct, threshold_pct, last_restart_monotonic, now_monotoni
 
 
 def add_status_fields(embed, info, metrics, players, offline_entries):
-    embed.add_field(name="Online", value=format_online_field(players), inline=False)
+    embed.add_field(name="Online", value=format_online_field(players, session_started), inline=False)
     embed.add_field(name="Offline", value=format_offline_field(offline_entries, OFFLINE_PLAYERS_LIMIT), inline=False)
     embed.add_field(name="FPS", value=metrics["serverfps"])
     embed.add_field(name="Uptime", value=f"{metrics['uptime'] // 3600}h")
