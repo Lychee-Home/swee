@@ -154,6 +154,32 @@ def save_player_history():
         json.dump(player_history, f, indent=2)
 
 
+async def record_join(name, dt):
+    try:
+        data = await rest.players()
+    except Exception:
+        log.exception("player history: failed to fetch players on join for %s", name)
+        return
+    for p in data.get("players", []):
+        if p["name"] == name:
+            uid = p["userId"]
+            online_players[name] = uid
+            player_history[uid] = {"name": name, "last_seen": dt.isoformat()}
+            save_player_history()
+            return
+
+
+async def record_leave(name, dt):
+    uid = online_players.pop(name, None)
+    if uid is None:
+        uid = next((k for k, v in player_history.items() if v["name"] == name), None)
+    if uid is None:
+        uid = f"name:{name}"
+        log.warning("player history: no stable ID found for %s on leave, using fallback key", name)
+    player_history[uid] = {"name": name, "last_seen": dt.isoformat()}
+    save_player_history()
+
+
 def offline_entries_from_history(history, online_ids):
     entries = []
     for uid, rec in history.items():
@@ -364,9 +390,11 @@ async def log_tailer():
                     _, rest_msg = ts_match.groups()
                     if m := JOIN_RE.search(rest_msg):
                         await broadcast_embed(f"{m.group(1)} joined the server", None, COLOR_JOIN, dt)
+                        await record_join(m.group(1), dt)
                         await update_stats_message()
                     elif m := LEAVE_RE.search(rest_msg):
                         await broadcast_embed(f"{m.group(1)} left the server", None, COLOR_LEAVE, dt)
+                        await record_leave(m.group(1), dt)
                         await update_stats_message()
                 else:
                     if SHUTDOWN_RE.search(msg):
