@@ -180,6 +180,16 @@ async def record_leave(name, dt):
     save_player_history()
 
 
+def refresh_online_players(players_list):
+    online_players.clear()
+    now_iso = datetime.now(timezone.utc).astimezone(PACIFIC).isoformat()
+    for p in players_list:
+        uid = p["userId"]
+        online_players[p["name"]] = uid
+        player_history[uid] = {"name": p["name"], "last_seen": now_iso}
+    save_player_history()
+
+
 def offline_entries_from_history(history, online_ids):
     entries = []
     for uid, rec in history.items():
@@ -268,7 +278,14 @@ async def update_stats_message():
     async with _stats_lock:
         try:
             info, metrics = await rest.info(), await rest.metrics()
-            embed = build_stats_embed(info, metrics)
+            try:
+                players_list = (await rest.players()).get("players", [])
+                refresh_online_players(players_list)
+            except Exception:
+                log.exception("player history: failed to refresh online players")
+                players_list = []
+            offline_entries = offline_entries_from_history(player_history, set(online_players.values()))
+            embed = build_stats_embed(info, metrics, players_list, offline_entries)
 
             if stats_message_id:
                 try:
