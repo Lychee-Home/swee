@@ -247,17 +247,18 @@ def should_auto_restart(pct, threshold_pct, last_restart_monotonic, now_monotoni
     return now_monotonic - last_restart_monotonic >= cooldown_min * 60
 
 
-def add_status_fields(embed, info, metrics):
-    embed.add_field(name="Players", value=f"{metrics['currentplayernum']}/{metrics['maxplayernum']}")
+def add_status_fields(embed, info, metrics, players, offline_entries):
+    embed.add_field(name="Online", value=format_online_field(players), inline=False)
+    embed.add_field(name="Offline", value=format_offline_field(offline_entries, OFFLINE_PLAYERS_LIMIT), inline=False)
     embed.add_field(name="FPS", value=metrics["serverfps"])
     embed.add_field(name="Uptime", value=f"{metrics['uptime'] // 3600}h")
     embed.add_field(name="Version", value=info["version"])
     return embed
 
 
-def build_stats_embed(info, metrics):
+def build_stats_embed(info, metrics, players, offline_entries):
     embed = discord.Embed(title=info["servername"], color=COLOR_READY)
-    add_status_fields(embed, info, metrics)
+    add_status_fields(embed, info, metrics, players, offline_entries)
     try:
         embed.add_field(name="System RAM", value=get_ram_usage())
     except Exception:
@@ -441,8 +442,14 @@ async def on_message(message):
 @in_commands_channel()
 async def status(interaction: discord.Interaction):
     info, metrics = await rest.info(), await rest.metrics()
+    try:
+        players_list = (await rest.players()).get("players", [])
+    except Exception:
+        log.exception("player history: failed to fetch players for /status")
+        players_list = []
+    offline_entries = offline_entries_from_history(player_history, set(online_players.values()))
     embed = discord.Embed(title=info["servername"], color=COLOR_CHAT)
-    add_status_fields(embed, info, metrics)
+    add_status_fields(embed, info, metrics, players_list, offline_entries)
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
@@ -590,6 +597,7 @@ async def main():
     discord.utils.setup_logging()
     if not check_palworld_service():
         raise SystemExit(1)
+    load_player_history()
     async with bot:
         await bot.start(BOT_TOKEN)
         # bot.start() returns once the bot is closed (e.g. Ctrl+C) — clean up
