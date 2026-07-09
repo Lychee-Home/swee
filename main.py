@@ -37,6 +37,8 @@ RAM_RESTART_THRESHOLD_PCT = float(_ram_restart_threshold_env) if _ram_restart_th
 RAM_RESTART_COOLDOWN_MIN = float(os.environ.get("RAM_RESTART_COOLDOWN_MIN", "15"))
 RAM_RESTART_WARNING_SEC = float(os.environ.get("RAM_RESTART_WARNING_SEC", "60"))
 
+OFFLINE_PLAYERS_LIMIT = int(os.environ.get("OFFLINE_PLAYERS_LIMIT", "10"))
+
 PACIFIC = ZoneInfo("America/Los_Angeles")
 
 JOIN_RE     = re.compile(r'\[LOG\]\s*(.+?) joined the server')
@@ -128,6 +130,54 @@ _stats_lock = asyncio.Lock()  # serializes concurrent callers (ticker + join/lea
 _last_auto_restart = None  # time.monotonic() of the last auto-restart trigger, or None
 _auto_restart_task = None  # keeps a strong reference so asyncio doesn't GC it mid-run
 _auto_restart_in_progress = False  # suppresses log_tailer's own "Server is online" during a sequence
+
+# ---------- Player history (online/offline tracking) ----------
+PLAYER_HISTORY_PATH = "player_history.json"
+player_history = {}   # userId -> {"name": str, "last_seen": ISO8601 str}
+online_players = {}   # display name -> userId, refreshed on join/leave/tick
+
+
+def load_player_history():
+    global player_history
+    try:
+        with open(PLAYER_HISTORY_PATH) as f:
+            player_history = json.load(f)
+    except FileNotFoundError:
+        player_history = {}
+    except json.JSONDecodeError:
+        log.warning("player_history.json is corrupt, starting with empty history")
+        player_history = {}
+
+
+def save_player_history():
+    with open(PLAYER_HISTORY_PATH, "w") as f:
+        json.dump(player_history, f, indent=2)
+
+
+def offline_entries_from_history(history, online_ids):
+    entries = []
+    for uid, rec in history.items():
+        if uid in online_ids:
+            continue
+        dt = datetime.fromisoformat(rec["last_seen"])
+        entries.append((rec["name"], int(dt.timestamp())))
+    entries.sort(key=lambda e: e[1], reverse=True)
+    return entries
+
+
+def format_online_field(players):
+    if not players:
+        return "No one online."
+    return "\n".join(f"**{p['name']}** — Lv.{p['level']} ({round(p['ping'])}ms)" for p in players)
+
+
+def format_offline_field(entries, limit):
+    if not entries:
+        return "None yet."
+    lines = [f"**{name}** — <t:{ts}:R>" for name, ts in entries[:limit]]
+    if len(entries) > limit:
+        lines.append(f"…and {len(entries) - limit} more")
+    return "\n".join(lines)
 
 
 def read_ram_stats():
