@@ -135,6 +135,8 @@ _auto_restart_in_progress = False  # suppresses log_tailer's own "Server is onli
 PLAYER_HISTORY_PATH = "player_history.json"
 player_history = {}   # userId -> {"name": str, "last_seen": ISO8601 str}
 online_players = {}   # display name -> userId, refreshed on join/leave/tick
+# Safe without _stats_lock only because these dicts are never mutated across an `await`
+# (asyncio is single-threaded); if that changes, guard the mutation with _stats_lock.
 
 
 def load_player_history():
@@ -165,6 +167,7 @@ async def record_join(name, dt):
             uid = p["userId"]
             online_players[name] = uid
             player_history[uid] = {"name": name, "last_seen": dt.isoformat()}
+            player_history.pop(f"name:{name}", None)  # supersede any stale fallback-key entry
             save_player_history()
             return
 
@@ -187,6 +190,7 @@ def refresh_online_players(players_list):
         uid = p["userId"]
         online_players[p["name"]] = uid
         player_history[uid] = {"name": p["name"], "last_seen": now_iso}
+        player_history.pop(f"name:{p['name']}", None)  # supersede any stale fallback-key entry
     save_player_history()
 
 
@@ -444,6 +448,7 @@ async def status(interaction: discord.Interaction):
     info, metrics = await rest.info(), await rest.metrics()
     try:
         players_list = (await rest.players()).get("players", [])
+        refresh_online_players(players_list)
     except Exception:
         log.exception("player history: failed to fetch players for /status")
         players_list = []
