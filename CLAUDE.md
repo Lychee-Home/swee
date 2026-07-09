@@ -10,7 +10,7 @@ live-updating stats embed pinned in a channel, and exposes slash commands for st
 admin actions (save, kick, ban, broadcast, restart) via Palworld's REST API. See `README.md` for
 architecture and setup details.
 
-- Python 3.13 (see `.idea/misc.xml` for the configured interpreter, named `swee`)
+- Python 3.14 (see `.idea/misc.xml` for the configured interpreter, named `swee`)
 - Dependencies are pinned in `requirements.txt` (discord.py, httpx, python-dotenv, plus transitive
   requests/urllib3/certifi/idna/charset-normalizer pins); install with `pip install -r requirements.txt`
   into the `.venv` at the repo root

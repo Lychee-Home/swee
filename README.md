@@ -75,9 +75,9 @@ Manage the running bot with `systemctl {status,stop,restart} swee` and `journalc
 
 ## Requirements
 
-- Python 3.13
+- Python 3.14
 - Dependencies pinned in `requirements.txt` (discord.py>=2.7.1, httpx, python-dotenv, plus
-  transitive pins). Note: discord.py 2.7.1's published support range tops out at Python 3.12, so
-  watch for install/compatibility issues on 3.13.
+  transitive pins). Watch for install/compatibility issues on new Python releases, since
+  dependency wheels sometimes lag behind.
 - A running Palworld dedicated server with the REST API enabled
 - A Discord bot application with `message_content` intent enabled in the Developer Portal

@@ -13,7 +13,7 @@ set -euo pipefail
 
 SWEE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SWEE_USER="$(whoami)"
-PYTHON_BIN="python3.13"
+PYTHON_BIN="python3.14"
 
 cd "$SWEE_DIR"
 
@@ -21,7 +21,7 @@ echo "==> Checking for $PYTHON_BIN"
 if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
     echo "==> $PYTHON_BIN not found, installing via apt"
     sudo apt-get update
-    sudo apt-get install -y python3.13 python3.13-venv
+    sudo apt-get install -y python3.14 python3.14-venv
 fi
 
 echo "==> Creating virtualenv"
