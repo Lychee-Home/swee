@@ -19,7 +19,7 @@ load_dotenv()
 log = logging.getLogger("swee")
 
 GUILD_ID            = int(os.environ["GUILD_ID"])
-RELAY_CHANNEL_ID    = int(os.environ["RELAY_CHANNEL_ID"])
+RELAY_CHANNEL_ID    = int(os.environ["RELAY_CHANNEL_ID"]) if os.environ.get("RELAY_CHANNEL_ID") else None
 STATS_CHANNEL_ID    = int(os.environ["STATS_CHANNEL_ID"])
 ADMIN_ROLE_ID       = int(os.environ["ADMIN_ROLE_ID"])
 ADMIN_CHANNEL_ID    = int(os.environ["ADMIN_CHANNEL_ID"])
@@ -449,7 +449,9 @@ async def log_tailer():
 # ---------- Discord -> game ----------
 @bot.event
 async def on_message(message):
-    if message.author.bot or message.channel.id != RELAY_CHANNEL_ID:
+    if RELAY_CHANNEL_ID is None or message.author.bot or message.channel.id != RELAY_CHANNEL_ID:
+        return
+    if message.type not in (discord.MessageType.default, discord.MessageType.reply):
         return
     try:
         await rest.announce(f"{message.author.display_name}: {message.content}")
