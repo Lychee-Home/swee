@@ -476,17 +476,15 @@ async def status(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
-@bot.tree.command(description="List online players")
+@bot.tree.command(description="List online and offline players")
 @in_commands_channel()
 async def players(interaction: discord.Interaction):
-    data = await rest.players()
-    plist = data.get("players", [])
-    embed = discord.Embed(title="Online Players", color=COLOR_CHAT)
-    if not plist:
-        embed.description = "No one online."
-    else:
-        lines = [f"**{p['name']}** — Lv.{p['level']} ({round(p['ping'])}ms)" for p in plist]
-        embed.description = "\n".join(lines)
+    plist = (await rest.players()).get("players", [])
+    refresh_online_players(plist)
+    offline_entries = offline_entries_from_history(player_history, set(online_players.values()))
+    embed = discord.Embed(title="Players", color=COLOR_CHAT)
+    embed.add_field(name="Online", value=format_online_field(plist, session_started), inline=False)
+    embed.add_field(name="Offline", value=format_offline_field(offline_entries, OFFLINE_PLAYERS_LIMIT), inline=False)
     await interaction.response.send_message(embed=embed)
 
 
