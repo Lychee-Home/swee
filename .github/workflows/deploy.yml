@@ -1,0 +1,19 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Pull latest and restart service
+        env:
+          SWEE_DIR: ${{ vars.SWEE_DIR }}
+        run: |
+          set -euo pipefail
+          cd "${SWEE_DIR:-$HOME/swee}"
+          git pull --ff-only origin main
+          .venv/bin/pip install -q -r requirements.txt
+          sudo systemctl restart swee

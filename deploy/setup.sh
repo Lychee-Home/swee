@@ -65,6 +65,20 @@ else
     echo "    Already configured, skipping"
 fi
 
+echo "==> Checking passwordless sudo for 'systemctl restart swee'"
+SWEE_SUDOERS_FILE="/etc/sudoers.d/swee-self-restart"
+SWEE_SUDOERS_LINE="$SWEE_USER ALL=(root) NOPASSWD: /usr/bin/systemctl restart swee"
+if [ "$(sudo cat "$SWEE_SUDOERS_FILE" 2>/dev/null || true)" != "$SWEE_SUDOERS_LINE" ]; then
+    TMP_SUDOERS="$(mktemp)"
+    echo "$SWEE_SUDOERS_LINE" > "$TMP_SUDOERS"
+    sudo visudo -cf "$TMP_SUDOERS"
+    sudo install -m 440 -o root -g root "$TMP_SUDOERS" "$SWEE_SUDOERS_FILE"
+    rm -f "$TMP_SUDOERS"
+    echo "    Installed $SWEE_SUDOERS_FILE"
+else
+    echo "    Already configured, skipping"
+fi
+
 echo "==> Installing systemd unit"
 UNIT_DEST="/etc/systemd/system/swee.service"
 RENDERED_UNIT="$(sed -e "s#__SWEE_USER__#${SWEE_USER}#g" -e "s#__SWEE_DIR__#${SWEE_DIR}#g" deploy/swee.service)"
