@@ -442,7 +442,18 @@ async def log_tailer():
                         await update_stats_message()
                 else:
                     if SHUTDOWN_RE.search(msg):
-                        await broadcast_embed("Server shutting down", None, COLOR_SHUTDOWN, dt, channel_id=ALERTS_CHANNEL_ID)
+                        if _bot_restart_in_progress:
+                            await broadcast_embed("Server shutting down", None, COLOR_SHUTDOWN, dt, channel_id=ALERTS_CHANNEL_ID)
+                        else:
+                            cause = await detect_unplanned_restart_cause(dt)
+                            await broadcast_embed(
+                                "Server restarted unexpectedly",
+                                None,
+                                COLOR_SHUTDOWN,
+                                dt,
+                                channel_id=ALERTS_CHANNEL_ID,
+                                fields=[("Likely cause", cause or "Unknown — an admin will need to check the server logs.")],
+                            )
                     elif m := VERSION_RE.search(msg):
                         if not _bot_restart_in_progress:
                             await broadcast_embed("Server is online", f"Game version: `{m.group(1)}`", COLOR_READY, dt, channel_id=ALERTS_CHANNEL_ID)
