@@ -16,7 +16,15 @@ else
   exit 0
 fi
 
-if [[ -n "$breaking_marker" || "$body" == *"BREAKING CHANGE:"* ]]; then
+has_breaking_footer=false
+while IFS= read -r line; do
+  if [[ "$line" == "BREAKING CHANGE:"* ]]; then
+    has_breaking_footer=true
+    break
+  fi
+done <<< "$body"
+
+if [[ -n "$breaking_marker" || "$has_breaking_footer" == true ]]; then
   level="major"
 elif [[ "$type" == "feat" ]]; then
   level="minor"

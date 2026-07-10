@@ -100,9 +100,10 @@ etc. — enforced by a PR check, though not merge-blocking). Squash merge is the
 merge method, so each PR becomes exactly one commit on `main` titled with its PR title.
 
 On push to `main`, `.github/workflows/release.yml` reads that commit's type:
-- `feat` bumps MINOR, `fix`/`perf` bump PATCH, and a `!` after the type/scope (or a
-  `BREAKING CHANGE:` footer) bumps MAJOR — each creates a new `vX.Y.Z` tag and GitHub Release
-  with auto-generated notes.
+- `feat` bumps MINOR, `fix`/`perf` bump PATCH, and a `!` after the type/scope (or a line in the
+  PR description that starts with `BREAKING CHANGE:`) bumps MAJOR — each creates a new
+  `vX.Y.Z` tag and GitHub Release with auto-generated notes. The footer must start a line;
+  merely mentioning the phrase elsewhere in the description doesn't trigger it.
 - Any other type (`docs`, `chore`, `ci`, `style`, `test`, `refactor`, `build`, `revert`) merges
   without a release.
 
