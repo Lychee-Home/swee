@@ -1,0 +1,36 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Determine release
+        id: release
+        run: |
+          latest_tag="$(git describe --tags --abbrev=0 --match 'v*')"
+          subject="$(git log -1 --format=%s)"
+          body="$(git log -1 --format=%b)"
+          COMMIT_SUBJECT="$subject" COMMIT_BODY="$body" LATEST_TAG="$latest_tag" \
+            bash scripts/compute-version-bump.sh >> "$GITHUB_OUTPUT"
+
+      - name: Create tag and release
+        if: steps.release.outputs.level != 'none'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ steps.release.outputs.tag }}"
+          git tag -a "$tag" -m "$tag"
+          git push origin "$tag"
+          gh release create "$tag" --generate-notes
