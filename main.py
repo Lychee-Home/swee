@@ -6,6 +6,7 @@ import asyncio
 import logging
 import subprocess
 from datetime import datetime, timezone
+from typing import Awaitable, Callable
 from zoneinfo import ZoneInfo
 
 import discord
@@ -46,6 +47,9 @@ LEAVE_RE    = re.compile(r'\[LOG\]\s*(.+?) left the server')
 TS_RE       = re.compile(r'^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]\s*(.*)')
 SHUTDOWN_RE = re.compile(r'Shutdown handler: initialize\.')
 VERSION_RE  = re.compile(r'Game version is (v[\d.]+)')
+UPGRADE_LOG_RE = re.compile(
+    r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\d+ INFO Packages that will be upgraded: (.+)$'
+)
 
 COLOR_CHAT, COLOR_JOIN, COLOR_LEAVE = 0x5865F2, 0x57F287, 0xED4245
 COLOR_SHUTDOWN, COLOR_READY = 0xFEE75C, 0x57F287
@@ -446,6 +450,53 @@ async def log_tailer():
         except Exception:
             log.exception("log tailer crashed, restarting in 5s")
         await asyncio.sleep(5)
+
+
+# ---------- Unplanned-restart cause detection ----------
+UNATTENDED_UPGRADES_LOG = "/var/log/unattended-upgrades/unattended-upgrades.log"
+
+
+def _read_last_lines(path, n):
+    with open(path) as f:
+        return f.readlines()[-n:]
+
+
+async def detect_unattended_upgrades(shutdown_dt):
+    try:
+        lines = await asyncio.to_thread(_read_last_lines, UNATTENDED_UPGRADES_LOG, 100)
+    except OSError:
+        return None
+
+    for line in reversed(lines):
+        m = UPGRADE_LOG_RE.match(line.strip())
+        if not m:
+            continue
+        try:
+            ts = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+        delta = (shutdown_dt.astimezone(timezone.utc) - ts).total_seconds()
+        if -30 <= delta <= 120:
+            return "A routine system update installed a security patch that caused a restart."
+        return None  # most recent entry too far from the shutdown time — no match
+    return None
+
+
+CAUSE_DETECTORS: list[Callable[[datetime], Awaitable[str | None]]] = [
+    detect_unattended_upgrades,
+]
+
+
+async def detect_unplanned_restart_cause(shutdown_dt):
+    for detector in CAUSE_DETECTORS:
+        try:
+            result = await detector(shutdown_dt)
+        except Exception:
+            log.exception("cause detector %s failed", detector.__name__)
+            continue
+        if result:
+            return result
+    return None
 
 
 # ---------- Discord -> game ----------
