@@ -19,7 +19,7 @@ jobs:
       - name: Determine release
         id: release
         run: |
-          latest_tag="$(git describe --tags --abbrev=0 --match 'v*')"
+          latest_tag="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
           subject="$(git log -1 --format=%s)"
           body="$(git log -1 --format=%b)"
           COMMIT_SUBJECT="$subject" COMMIT_BODY="$body" LATEST_TAG="$latest_tag" \
@@ -30,6 +30,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           tag="${{ steps.release.outputs.tag }}"
           git tag -a "$tag" -m "$tag"
           git push origin "$tag"
