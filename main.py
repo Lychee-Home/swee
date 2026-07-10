@@ -483,6 +483,9 @@ async def detect_unattended_upgrades(shutdown_dt):
         if not m:
             continue
         try:
+            # unattended-upgrades logs in system local time; assumes the host runs in UTC
+            # (true for this deployment) — if that changes, this comparison silently stops
+            # matching and just degrades to "cause unknown" rather than erroring.
             ts = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
         except ValueError:
             return None
