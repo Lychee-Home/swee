@@ -11,6 +11,13 @@ actions (save, kick, ban, broadcast, restart).
 - **`journalctl -u palworld -f`** — tailed for chat/join/leave/shutdown/version log lines. Join/leave
   and chat relay are posted to `ACTIVITY_CHANNEL_ID` as embeds; server shutdown and server-online
   messages go to `ALERTS_CHANNEL_ID` instead.
+- **Unplanned-restart notification** — a shutdown triggered by `/restart` or the RAM auto-restart
+  posts the plain "Server shutting down" message as above. Any other shutdown (host-level restart,
+  crash, a package upgrade cycling the service, etc.) instead posts "Server restarted unexpectedly"
+  with a best-effort "Likely cause" field. The cause is filled in by a small extensible list of
+  detectors (`CAUSE_DETECTORS` in `main.py`) — currently one, which recognizes an
+  `unattended-upgrades` package install immediately preceding the restart (the `needrestart`
+  pattern). No match falls back to "Unknown — an admin will need to check the server logs."
 - **Stats embed** — a single pinned message in `STATS_CHANNEL_ID`, edited in place every minute (and
   on join/leave) with player count, FPS, uptime, version, and host system RAM usage (read from
   `/proc/meminfo`, so this must run on Linux, on the same box as the game server).
