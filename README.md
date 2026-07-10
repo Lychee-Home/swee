@@ -92,6 +92,23 @@ inbound access to the host is required since the runner polls GitHub outbound; `
 installs the passwordless-sudo rule (`systemctl restart swee`) the workflow needs to restart the
 service non-interactively.
 
+### Versioning
+
+Releases are tagged automatically. Every PR title must follow [Conventional
+Commits](https://www.conventionalcommits.org/) format (`feat: ...`, `fix: ...`, `chore: ...`,
+etc. — enforced by a PR check, though not merge-blocking). Squash merge is the only allowed
+merge method, so each PR becomes exactly one commit on `main` titled with its PR title.
+
+On push to `main`, `.github/workflows/release.yml` reads that commit's type:
+- `feat` bumps MINOR, `fix`/`perf` bump PATCH, and a `!` after the type/scope (or a
+  `BREAKING CHANGE:` footer) bumps MAJOR — each creates a new `vX.Y.Z` tag and GitHub Release
+  with auto-generated notes.
+- Any other type (`docs`, `chore`, `ci`, `style`, `test`, `refactor`, `build`, `revert`) merges
+  without a release.
+
+Reserve `!`/`BREAKING CHANGE:` for changes that break an existing deployment on upgrade — e.g. a
+new required `.env` var, a removed/renamed slash command, a changed REST config shape.
+
 ## Requirements
 
 - Python 3.14
