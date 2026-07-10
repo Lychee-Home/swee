@@ -39,6 +39,14 @@ run_case "BREAKING CHANGE footer bumps major" \
   "fix: change REST auth header" "BREAKING CHANGE: renamed REST_PASSWORD to REST_TOKEN" "v1.2.3" \
   $'level=major\ntag=v2.0.0'
 
+run_case "BREAKING CHANGE mentioned mid-line does not bump major" \
+  "feat: document breaking change process" "See the \`BREAKING CHANGE:\` footer convention below." "v1.2.3" \
+  $'level=minor\ntag=v1.3.0'
+
+run_case "BREAKING CHANGE footer on its own line after prose bumps major" \
+  "fix: change REST auth header" $'Some prose mentioning BREAKING CHANGE: elsewhere is ignored.\n\nBREAKING CHANGE: renamed REST_PASSWORD to REST_TOKEN' "v1.2.3" \
+  $'level=major\ntag=v2.0.0'
+
 run_case "docs produces no release" \
   "docs: fix typo in README" "" "v1.2.3" \
   "level=none"
