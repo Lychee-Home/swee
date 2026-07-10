@@ -27,6 +27,10 @@ architecture and setup details.
 - When adding dependencies, add them to `requirements.txt`.
 - When adding a test suite or lint tooling, update this file with the actual run/build/lint/test
   commands.
+- Never push directly to `main` — pushes to `main` auto-deploy to the live bot (see
+  `README.md#continuous-deployment`), so every change goes through a feature branch and a PR,
+  even small ones. Create a branch, commit there, push it, and open a PR instead of pushing to
+  `main` directly.
 - Non-trivial features get a design spec and implementation plan committed under
   `docs/superpowers/specs/` and `docs/superpowers/plans/` (see `superpowers:brainstorming` and
   `superpowers:writing-plans`), named `YYYY-MM-DD-<topic>-design.md` / `YYYY-MM-DD-<topic>.md`.
