@@ -110,10 +110,12 @@ def in_commands_channel():
     return app_commands.check(predicate)
 
 
-async def broadcast_embed(title, description, color, dt=None, channel_id=ACTIVITY_CHANNEL_ID):
+async def broadcast_embed(title, description, color, dt=None, channel_id=ACTIVITY_CHANNEL_ID, fields=None):
     embed = discord.Embed(title=title, description=description, color=color)
     if dt:
         embed.timestamp = dt
+    for name, value in fields or []:
+        embed.add_field(name=name, value=value)
     channel = bot.get_channel(channel_id)
     if not isinstance(channel, discord.TextChannel):
         log.warning("broadcast failed: channel %s not found or not a text channel", channel_id)
