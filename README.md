@@ -80,6 +80,18 @@ sudo systemctl start swee
 
 Manage the running bot with `systemctl {status,stop,restart} swee` and `journalctl -u swee -f`.
 
+### Continuous deployment
+
+Pushes to `main` auto-deploy via `.github/workflows/deploy.yml`, which runs on a self-hosted
+GitHub Actions runner installed on the same host as the bot (see [GitHub's
+docs](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/add-runners)
+for installing the runner itself). On each push the runner `cd`s into the deployed repo
+(`$SWEE_DIR`, defaulting to `~/swee` — override with a repo variable of the same name if cloned
+elsewhere), does a `git pull --ff-only`, reinstalls dependencies, and restarts `swee.service`. No
+inbound access to the host is required since the runner polls GitHub outbound; `deploy/setup.sh`
+installs the passwordless-sudo rule (`systemctl restart swee`) the workflow needs to restart the
+service non-interactively.
+
 ## Requirements
 
 - Python 3.14
