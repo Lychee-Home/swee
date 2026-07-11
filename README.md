@@ -29,6 +29,12 @@ actions (save, kick, ban, broadcast, restart).
   is also posted to `ALERTS_CHANNEL_ID`.
 - **Relay channel** — messages posted in `RELAY_CHANNEL_ID` are forwarded to the game via the REST
   announce endpoint.
+- **Release announcements** — every 5 minutes the bot polls the GitHub Releases API
+  (`GITHUB_REPO`) for the latest release; when a new one appears, it humanizes the
+  auto-generated release notes (Conventional Commit prefixes and PR references stripped,
+  grouped into "New"/"Fixes") and posts an embed to `BOT_UPDATES_CHANNEL_ID`. The last
+  announced tag is cached in `last_release.json`; deleting that file makes the bot
+  re-seed from the current latest release on next startup without re-announcing it.
 
 ## Setup
 
