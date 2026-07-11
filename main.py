@@ -729,13 +729,35 @@ async def detect_unattended_upgrades(shutdown_dt):
             return None
         delta = (shutdown_dt.astimezone(timezone.utc) - ts).total_seconds()
         if -30 <= delta <= 120:
-            return "A routine system update installed a security patch that caused a restart."
+            return "A routine system update installed a security patch that caused a restart.", None
         return None  # most recent entry too far from the shutdown time — no match
     return None
 
 
-CAUSE_DETECTORS: list[Callable[[datetime], Awaitable[str | None]]] = [
+async def detect_ini_settings_change(shutdown_dt):
+    try:
+        new_settings = await asyncio.to_thread(parse_palworld_settings, PALWORLD_SETTINGS_INI_PATH)
+    except Exception:
+        log.warning("cause detector: failed to read/parse PalWorldSettings.ini", exc_info=True)
+        return None
+
+    if last_palworld_settings is None:
+        return "Settings-change tracking just initialized — no prior baseline to compare against.", None
+
+    changes = diff_palworld_settings(last_palworld_settings, new_settings)
+    if not changes:
+        return None
+
+    lines = [f"**{k}**: {v}" for k, v in format_settings_change_fields(changes)]
+    cause = "\n".join(lines)
+    if len(cause) > 1024:  # Discord embed field value limit
+        cause = cause[:1000] + "…"
+    return cause, new_settings
+
+
+CAUSE_DETECTORS: list[Callable[[datetime], Awaitable[tuple[str, dict | None] | None]]] = [
     detect_unattended_upgrades,
+    detect_ini_settings_change,
 ]
 
 
