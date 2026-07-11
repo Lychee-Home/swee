@@ -151,6 +151,10 @@ session_started = {}  # display name -> ISO8601 join timestamp, cleared on leave
 # Safe without _stats_lock only because these dicts are never mutated across an `await`
 # (asyncio is single-threaded); if that changes, guard the mutation with _stats_lock.
 
+# ---------- Last release state (release announcement tracking) ----------
+LAST_RELEASE_PATH = "last_release.json"
+last_release_tag = None  # cached in-memory; mirrors last_release.json on disk
+
 
 def load_player_history():
     global player_history
@@ -167,6 +171,25 @@ def load_player_history():
 def save_player_history():
     with open(PLAYER_HISTORY_PATH, "w") as f:
         json.dump(player_history, f, indent=2)
+
+
+def load_last_release():
+    global last_release_tag
+    try:
+        with open(LAST_RELEASE_PATH) as f:
+            last_release_tag = json.load(f).get("tag")
+    except FileNotFoundError:
+        last_release_tag = None
+    except json.JSONDecodeError:
+        log.warning("last_release.json is corrupt, starting with no cached tag")
+        last_release_tag = None
+
+
+def save_last_release(tag):
+    global last_release_tag
+    last_release_tag = tag
+    with open(LAST_RELEASE_PATH, "w") as f:
+        json.dump({"tag": tag}, f, indent=2)
 
 
 async def record_join(name, dt):
@@ -722,6 +745,7 @@ async def main():
     if not check_palworld_service():
         raise SystemExit(1)
     load_player_history()
+    load_last_release()
     async with bot:
         await bot.start(BOT_TOKEN)
         # bot.start() returns once the bot is closed (e.g. Ctrl+C) — clean up
