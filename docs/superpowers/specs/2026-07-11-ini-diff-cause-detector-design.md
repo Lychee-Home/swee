@@ -131,3 +131,11 @@ returns without posting — no duplicate embed. This relies entirely on step 3 r
   cause is reported (detector order) and the INI baseline is *not* advanced by this code path —
   it'll still be picked up later by `check_palworld_settings_change()` on the next online event.
   Accepted as a rare edge case matching the "first non-`None` result wins" design already in place.
+- The detector has no timing correlation between the INI edit and the restart (unlike
+  `detect_unattended_upgrades`'s time-window check). If an admin edits the INI but doesn't
+  restart — the edit sits inert since Palworld only reads the INI at startup, and the baseline
+  isn't advanced while the server keeps running — and the server later restarts unexpectedly for
+  an unrelated reason (crash, OOM), this detector will still report the stale INI edit as the
+  "Likely cause," potentially misleading whoever's investigating. Accepted given the feature's
+  primary use case is the edit-then-restart flow; flagged here rather than fixed so the tradeoff
+  is explicit for future maintainers, not silent.
