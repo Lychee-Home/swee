@@ -247,6 +247,55 @@ def save_last_release(tag):
         json.dump({"tag": tag}, f, indent=2)
 
 
+# ---------- Last Palworld settings snapshot (settings-change alert) ----------
+PALWORLD_SETTINGS_CACHE_PATH = "last_palworld_settings.json"
+last_palworld_settings = None  # cached in-memory; mirrors last_palworld_settings.json on disk; None until first check
+
+
+def load_last_palworld_settings():
+    global last_palworld_settings
+    try:
+        with open(PALWORLD_SETTINGS_CACHE_PATH) as f:
+            last_palworld_settings = json.load(f)
+    except FileNotFoundError:
+        last_palworld_settings = None
+    except json.JSONDecodeError:
+        log.warning("last_palworld_settings.json is corrupt, starting with no cached settings")
+        last_palworld_settings = None
+
+
+def save_last_palworld_settings(settings):
+    global last_palworld_settings
+    last_palworld_settings = settings
+    with open(PALWORLD_SETTINGS_CACHE_PATH, "w") as f:
+        json.dump(settings, f, indent=2)
+
+
+REDACTED_SETTINGS_KEYS = {"AdminPassword", "ServerPassword"}
+
+
+def diff_palworld_settings(old, new):
+    changes = []
+    for key in sorted(set(old) | set(new)):
+        old_val, new_val = old.get(key), new.get(key)
+        if old_val != new_val:
+            changes.append((key, old_val, new_val))
+    return changes
+
+
+def format_settings_change_fields(changes):
+    fields = []
+    for key, old_val, new_val in changes[:25]:
+        if key in REDACTED_SETTINGS_KEYS:
+            display = "(changed)"
+        else:
+            display = f"{old_val if old_val is not None else '—'} → {new_val if new_val is not None else '—'}"
+        fields.append((key, display))
+    if len(changes) > 25:
+        fields.append(("…", f"+{len(changes) - 25} more changed (see server config)"))
+    return fields
+
+
 async def record_join(name, dt):
     try:
         data = await rest.players()
