@@ -623,14 +623,17 @@ async def check_palworld_settings_change():
         if not changes:
             return
 
-        save_last_palworld_settings(new_settings)
-        await broadcast_embed(
+        sent = await broadcast_embed(
             "Palworld settings changed",
             None,
             COLOR_SHUTDOWN,
             channel_id=ALERTS_CHANNEL_ID,
             fields=format_settings_change_fields(changes),
         )
+        if sent:
+            save_last_palworld_settings(new_settings)
+        else:
+            log.warning("settings-change alert failed to post, will retry next restart")
     except Exception:
         log.exception("settings-change check failed after parsing PalWorldSettings.ini")
 
