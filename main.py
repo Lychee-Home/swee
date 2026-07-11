@@ -56,6 +56,9 @@ RELEASE_NOTE_RE = re.compile(
     r'^\*\s*(?P<type>\w+)(\([^)]*\))?!?:\s*(?P<desc>.+?)\s+by\s+@\S+\s+in\s+\S+$'
 )
 RELEASE_NOTE_LABELS = {"feat": "🆕 New", "fix": "🛠️ Fixes", "perf": "🛠️ Fixes"}
+# Section display order, derived from RELEASE_NOTE_LABELS itself (first-appearance order,
+# de-duplicated) so the two never drift apart.
+RELEASE_NOTE_SECTION_ORDER = tuple(dict.fromkeys(RELEASE_NOTE_LABELS.values()))
 
 COLOR_CHAT, COLOR_JOIN, COLOR_LEAVE = 0x5865F2, 0x57F287, 0xED4245
 COLOR_SHUTDOWN, COLOR_READY = 0xFEE75C, 0x57F287
@@ -137,11 +140,12 @@ async def broadcast_embed(title, description, color, dt=None, channel_id=ACTIVIT
     channel = bot.get_channel(channel_id)
     if not isinstance(channel, discord.TextChannel):
         log.warning("broadcast failed: channel %s not found or not a text channel", channel_id)
-        return
+        return None
     try:
-        await channel.send(embed=embed)
+        return await channel.send(embed=embed)
     except Exception:
         log.exception("broadcast failed")
+        return None
 
 
 # ---------- Live stats embed (separate channel, pinned, edited in place) ----------
@@ -297,7 +301,7 @@ def humanize_release_notes(body):
         return None
 
     sections = []
-    for label in ("🆕 New", "🛠️ Fixes"):
+    for label in RELEASE_NOTE_SECTION_ORDER:
         if label in grouped:
             lines = "\n".join(f"• {d}" for d in grouped[label])
             sections.append(f"{label}\n{lines}")
@@ -483,14 +487,22 @@ async def release_ticker():
         return
 
     body = release.get("body") or ""
-    notes = humanize_release_notes(body) or body or "No release notes."
-    await broadcast_embed(
+    notes = humanize_release_notes(body)
+    if notes is None:
+        notes = body or "No release notes."
+        max_len = 4000
+        if len(notes) > max_len:
+            notes = notes[:max_len] + "…"
+    sent = await broadcast_embed(
         f"\U0001f389 {tag} released",
         notes,
         COLOR_READY,
         channel_id=BOT_UPDATES_CHANNEL_ID,
     )
-    save_last_release(tag)
+    if sent:
+        save_last_release(tag)
+    else:
+        log.warning("release announcement failed for %s, will retry next tick", tag)
 
 
 # ---------- Log tailing (same events the original relay.py already captures) ----------
