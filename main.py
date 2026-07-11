@@ -34,6 +34,7 @@ ACTIVITY_CHANNEL_ID = int(os.environ["ACTIVITY_CHANNEL_ID"])
 ALERTS_CHANNEL_ID   = int(os.environ["ALERTS_CHANNEL_ID"])
 BOT_UPDATES_CHANNEL_ID = int(os.environ["BOT_UPDATES_CHANNEL_ID"])
 GITHUB_REPO            = os.environ["GITHUB_REPO"]
+PALWORLD_SETTINGS_INI_PATH = os.environ["PALWORLD_SETTINGS_INI_PATH"]
 
 _ram_restart_threshold_env = os.environ.get("RAM_RESTART_THRESHOLD_PCT")
 RAM_RESTART_THRESHOLD_PCT = float(_ram_restart_threshold_env) if _ram_restart_threshold_env else None
@@ -59,9 +60,51 @@ RELEASE_NOTE_LABELS = {"feat": "🆕 New", "fix": "🛠️ Fixes", "perf": "🛠
 # Section display order, derived from RELEASE_NOTE_LABELS itself (first-appearance order,
 # de-duplicated) so the two never drift apart.
 RELEASE_NOTE_SECTION_ORDER = tuple(dict.fromkeys(RELEASE_NOTE_LABELS.values()))
+OPTION_SETTINGS_RE = re.compile(r'OptionSettings=\((.*)\)\s*$')
 
 COLOR_CHAT, COLOR_JOIN, COLOR_LEAVE = 0x5865F2, 0x57F287, 0xED4245
 COLOR_SHUTDOWN, COLOR_READY = 0xFEE75C, 0x57F287
+
+
+# ---------- PalWorldSettings.ini parsing ----------
+def _parse_option_settings(text):
+    """Split the inner content of OptionSettings=(...) into a {key: value} dict.
+
+    Values are either bare tokens (numbers, enum names, True/False) or double-quoted
+    strings that may contain commas (e.g. ServerDescription="Hello, world") — a plain
+    comma-split would break on those, so this scans char-by-char instead.
+    """
+    pairs = {}
+    i, n = 0, len(text)
+    while i < n:
+        eq = text.index('=', i)
+        key = text[i:eq]
+        i = eq + 1
+        if i < n and text[i] == '"':
+            end = text.index('"', i + 1)
+            value = text[i:end + 1]
+            i = end + 1
+            if i < n and text[i] == ',':
+                i += 1
+        else:
+            comma = text.find(',', i)
+            if comma == -1:
+                value = text[i:]
+                i = n
+            else:
+                value = text[i:comma]
+                i = comma + 1
+        pairs[key] = value
+    return pairs
+
+
+def parse_palworld_settings(path):
+    with open(path) as f:
+        content = f.read()
+    m = OPTION_SETTINGS_RE.search(content)
+    if not m:
+        raise ValueError(f"no OptionSettings line found in {path}")
+    return _parse_option_settings(m.group(1))
 
 
 # ---------- REST client ----------
@@ -202,6 +245,58 @@ def save_last_release(tag):
     last_release_tag = tag
     with open(LAST_RELEASE_PATH, "w") as f:
         json.dump({"tag": tag}, f, indent=2)
+
+
+# ---------- Last Palworld settings snapshot (settings-change alert) ----------
+PALWORLD_SETTINGS_CACHE_PATH = "last_palworld_settings.json"
+last_palworld_settings = None  # cached in-memory; mirrors last_palworld_settings.json on disk; None until first check
+
+
+def load_last_palworld_settings():
+    global last_palworld_settings
+    try:
+        with open(PALWORLD_SETTINGS_CACHE_PATH) as f:
+            last_palworld_settings = json.load(f)
+    except FileNotFoundError:
+        last_palworld_settings = None
+    except json.JSONDecodeError:
+        log.warning("last_palworld_settings.json is corrupt, starting with no cached settings")
+        last_palworld_settings = None
+
+
+def save_last_palworld_settings(settings):
+    global last_palworld_settings
+    last_palworld_settings = settings
+    with open(PALWORLD_SETTINGS_CACHE_PATH, "w") as f:
+        json.dump(settings, f, indent=2)
+
+
+REDACTED_SETTINGS_KEYS = {"AdminPassword", "ServerPassword"}
+
+
+def diff_palworld_settings(old, new):
+    changes = []
+    for key in sorted(set(old) | set(new)):
+        old_val, new_val = old.get(key), new.get(key)
+        if old_val != new_val:
+            changes.append((key, old_val, new_val))
+    return changes
+
+
+def format_settings_change_fields(changes):
+    fields = []
+    # If more than 25 changes, only show 24 to leave room for the summary field
+    display_limit = 24 if len(changes) > 25 else len(changes)
+
+    for key, old_val, new_val in changes[:display_limit]:
+        if key in REDACTED_SETTINGS_KEYS:
+            display = "(changed)"
+        else:
+            display = f"{old_val if old_val is not None else '—'} → {new_val if new_val is not None else '—'}"
+        fields.append((key, display))
+    if len(changes) > 25:
+        fields.append(("…", f"+{len(changes) - 24} more changed (see server config)"))
+    return fields
 
 
 async def record_join(name, dt):
@@ -509,6 +604,40 @@ async def release_ticker():
 _log_tailer_task = None  # keeps a strong reference so asyncio doesn't GC it mid-run
 
 
+async def check_palworld_settings_change():
+    global last_palworld_settings
+    try:
+        new_settings = await asyncio.to_thread(parse_palworld_settings, PALWORLD_SETTINGS_INI_PATH)
+    except Exception:
+        log.warning("failed to read/parse PalWorldSettings.ini, skipping settings-change check", exc_info=True)
+        return
+
+    try:
+        if last_palworld_settings is None:
+            # First-ever check — seed the baseline without announcing, so shipping this
+            # feature doesn't dump every existing setting as "changed" on first deploy.
+            save_last_palworld_settings(new_settings)
+            return
+
+        changes = diff_palworld_settings(last_palworld_settings, new_settings)
+        if not changes:
+            return
+
+        sent = await broadcast_embed(
+            "Palworld settings changed",
+            None,
+            COLOR_SHUTDOWN,
+            channel_id=ALERTS_CHANNEL_ID,
+            fields=format_settings_change_fields(changes),
+        )
+        if sent:
+            save_last_palworld_settings(new_settings)
+        else:
+            log.warning("settings-change alert failed to post, will retry next restart")
+    except Exception:
+        log.exception("settings-change check failed after parsing PalWorldSettings.ini")
+
+
 async def log_tailer():
     # journalctl can exit on its own (log rotation, service hiccup, etc.); without
     # this loop a single exit would silently kill the relay for good.
@@ -565,6 +694,7 @@ async def log_tailer():
                     elif m := VERSION_RE.search(msg):
                         if not _bot_restart_in_progress:
                             await broadcast_embed("Server is online", f"Game version: `{m.group(1)}`", COLOR_READY, dt, channel_id=ALERTS_CHANNEL_ID)
+                        await check_palworld_settings_change()
             log.warning("log tailer: journalctl stream ended, restarting in 5s")
         except Exception:
             log.exception("log tailer crashed, restarting in 5s")
@@ -801,6 +931,7 @@ async def main():
         raise SystemExit(1)
     load_player_history()
     load_last_release()
+    load_last_palworld_settings()
     async with bot:
         await bot.start(BOT_TOKEN)
         # bot.start() returns once the bot is closed (e.g. Ctrl+C) — clean up
