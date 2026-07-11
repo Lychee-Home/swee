@@ -88,6 +88,14 @@ class PalRestClient:
 rest = PalRestClient()
 
 
+async def fetch_latest_release():
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        r = await client.get(url, headers={"Accept": "application/vnd.github+json"})
+        r.raise_for_status()
+        return r.json()
+
+
 # ---------- Bot setup ----------
 intents = discord.Intents.default()
 intents.message_content = True  # must also be enabled in the Discord Developer Portal
@@ -451,6 +459,40 @@ async def stats_ticker():
         _auto_restart_task.add_done_callback(_log_auto_restart_failure)
 
 
+@tasks.loop(minutes=5)
+async def release_ticker():
+    global last_release_tag
+    try:
+        release = await fetch_latest_release()
+    except Exception:
+        log.exception("release check failed")
+        return
+
+    tag = release.get("tag_name")
+    if not tag:
+        return
+
+    if last_release_tag is None:
+        # First run with no cached state — seed it without announcing, so
+        # shipping this feature doesn't dump a changelog for a release that
+        # already happened before the bot could track it.
+        save_last_release(tag)
+        return
+
+    if tag == last_release_tag:
+        return
+
+    body = release.get("body") or ""
+    notes = humanize_release_notes(body) or body or "No release notes."
+    await broadcast_embed(
+        f"\U0001f389 {tag} released",
+        notes,
+        COLOR_READY,
+        channel_id=BOT_UPDATES_CHANNEL_ID,
+    )
+    save_last_release(tag)
+
+
 # ---------- Log tailing (same events the original relay.py already captures) ----------
 _log_tailer_task = None  # keeps a strong reference so asyncio doesn't GC it mid-run
 
@@ -737,6 +779,7 @@ async def on_ready():
     global _log_tailer_task
     _log_tailer_task = asyncio.create_task(log_tailer())
     stats_ticker.start()
+    release_ticker.start()
     log.info("Logged in as %s", bot.user)
 
 
@@ -751,6 +794,7 @@ async def main():
         # bot.start() returns once the bot is closed (e.g. Ctrl+C) — clean up
         # the background task and REST client rather than leaving them dangling.
         stats_ticker.cancel()
+        release_ticker.cancel()
         if _log_tailer_task:
             _log_tailer_task.cancel()
         await rest.client.aclose()
