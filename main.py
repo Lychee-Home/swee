@@ -682,15 +682,18 @@ async def log_tailer():
                         if _bot_restart_in_progress:
                             await broadcast_embed("Server shutting down", None, COLOR_SHUTDOWN, dt, channel_id=ALERTS_CHANNEL_ID)
                         else:
-                            cause = await detect_unplanned_restart_cause(dt)
-                            await broadcast_embed(
+                            cause_result = await detect_unplanned_restart_cause(dt)
+                            cause_text, pending_settings = cause_result or (None, None)
+                            sent = await broadcast_embed(
                                 "Server restarted unexpectedly",
                                 None,
                                 COLOR_SHUTDOWN,
                                 dt,
                                 channel_id=ALERTS_CHANNEL_ID,
-                                fields=[("Likely cause", cause or "Unknown — an admin will need to check the server logs.")],
+                                fields=[("Likely cause", cause_text or "Unknown — an admin will need to check the server logs.")],
                             )
+                            if sent and pending_settings is not None:
+                                save_last_palworld_settings(pending_settings)
                     elif m := VERSION_RE.search(msg):
                         if not _bot_restart_in_progress:
                             await broadcast_embed("Server is online", f"Game version: `{m.group(1)}`", COLOR_READY, dt, channel_id=ALERTS_CHANNEL_ID)
