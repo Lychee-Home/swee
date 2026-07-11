@@ -285,14 +285,17 @@ def diff_palworld_settings(old, new):
 
 def format_settings_change_fields(changes):
     fields = []
-    for key, old_val, new_val in changes[:25]:
+    # If more than 25 changes, only show 24 to leave room for the summary field
+    display_limit = 24 if len(changes) > 25 else len(changes)
+
+    for key, old_val, new_val in changes[:display_limit]:
         if key in REDACTED_SETTINGS_KEYS:
             display = "(changed)"
         else:
             display = f"{old_val if old_val is not None else '—'} → {new_val if new_val is not None else '—'}"
         fields.append((key, display))
     if len(changes) > 25:
-        fields.append(("…", f"+{len(changes) - 25} more changed (see server config)"))
+        fields.append(("…", f"+{len(changes) - 24} more changed (see server config)"))
     return fields
 
 
