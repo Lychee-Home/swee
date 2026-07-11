@@ -60,9 +60,51 @@ RELEASE_NOTE_LABELS = {"feat": "🆕 New", "fix": "🛠️ Fixes", "perf": "🛠
 # Section display order, derived from RELEASE_NOTE_LABELS itself (first-appearance order,
 # de-duplicated) so the two never drift apart.
 RELEASE_NOTE_SECTION_ORDER = tuple(dict.fromkeys(RELEASE_NOTE_LABELS.values()))
+OPTION_SETTINGS_RE = re.compile(r'OptionSettings=\((.*)\)\s*$')
 
 COLOR_CHAT, COLOR_JOIN, COLOR_LEAVE = 0x5865F2, 0x57F287, 0xED4245
 COLOR_SHUTDOWN, COLOR_READY = 0xFEE75C, 0x57F287
+
+
+# ---------- PalWorldSettings.ini parsing ----------
+def _parse_option_settings(text):
+    """Split the inner content of OptionSettings=(...) into a {key: value} dict.
+
+    Values are either bare tokens (numbers, enum names, True/False) or double-quoted
+    strings that may contain commas (e.g. ServerDescription="Hello, world") — a plain
+    comma-split would break on those, so this scans char-by-char instead.
+    """
+    pairs = {}
+    i, n = 0, len(text)
+    while i < n:
+        eq = text.index('=', i)
+        key = text[i:eq]
+        i = eq + 1
+        if i < n and text[i] == '"':
+            end = text.index('"', i + 1)
+            value = text[i:end + 1]
+            i = end + 1
+            if i < n and text[i] == ',':
+                i += 1
+        else:
+            comma = text.find(',', i)
+            if comma == -1:
+                value = text[i:]
+                i = n
+            else:
+                value = text[i:comma]
+                i = comma + 1
+        pairs[key] = value
+    return pairs
+
+
+def parse_palworld_settings(path):
+    with open(path) as f:
+        content = f.read()
+    m = OPTION_SETTINGS_RE.search(content)
+    if not m:
+        raise ValueError(f"no OptionSettings line found in {path}")
+    return _parse_option_settings(m.group(1))
 
 
 # ---------- REST client ----------
