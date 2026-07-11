@@ -682,15 +682,18 @@ async def log_tailer():
                         if _bot_restart_in_progress:
                             await broadcast_embed("Server shutting down", None, COLOR_SHUTDOWN, dt, channel_id=ALERTS_CHANNEL_ID)
                         else:
-                            cause = await detect_unplanned_restart_cause(dt)
-                            await broadcast_embed(
+                            cause_result = await detect_unplanned_restart_cause(dt)
+                            cause_text, pending_settings = cause_result or (None, None)
+                            sent = await broadcast_embed(
                                 "Server restarted unexpectedly",
                                 None,
                                 COLOR_SHUTDOWN,
                                 dt,
                                 channel_id=ALERTS_CHANNEL_ID,
-                                fields=[("Likely cause", cause or "Unknown — an admin will need to check the server logs.")],
+                                fields=[("Likely cause", cause_text or "Unknown — an admin will need to check the server logs.")],
                             )
+                            if sent and pending_settings is not None:
+                                save_last_palworld_settings(pending_settings)
                     elif m := VERSION_RE.search(msg):
                         if not _bot_restart_in_progress:
                             await broadcast_embed("Server is online", f"Game version: `{m.group(1)}`", COLOR_READY, dt, channel_id=ALERTS_CHANNEL_ID)
@@ -729,13 +732,35 @@ async def detect_unattended_upgrades(shutdown_dt):
             return None
         delta = (shutdown_dt.astimezone(timezone.utc) - ts).total_seconds()
         if -30 <= delta <= 120:
-            return "A routine system update installed a security patch that caused a restart."
+            return "A routine system update installed a security patch that caused a restart.", None
         return None  # most recent entry too far from the shutdown time — no match
     return None
 
 
-CAUSE_DETECTORS: list[Callable[[datetime], Awaitable[str | None]]] = [
+async def detect_ini_settings_change(shutdown_dt):
+    try:
+        new_settings = await asyncio.to_thread(parse_palworld_settings, PALWORLD_SETTINGS_INI_PATH)
+    except Exception:
+        log.warning("cause detector: failed to read/parse PalWorldSettings.ini", exc_info=True)
+        return None
+
+    if last_palworld_settings is None:
+        return "Settings-change tracking just initialized — no prior baseline to compare against.", None
+
+    changes = diff_palworld_settings(last_palworld_settings, new_settings)
+    if not changes:
+        return None
+
+    lines = [f"**{k}**: {v}" for k, v in format_settings_change_fields(changes)]
+    cause = "\n".join(lines)
+    if len(cause) > 1024:  # Discord embed field value limit
+        cause = cause[:1000] + "…"
+    return cause, new_settings
+
+
+CAUSE_DETECTORS: list[Callable[[datetime], Awaitable[tuple[str, dict | None] | None]]] = [
     detect_unattended_upgrades,
+    detect_ini_settings_change,
 ]
 
 
