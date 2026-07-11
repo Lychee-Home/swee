@@ -32,6 +32,8 @@ REST_AUTH = httpx.BasicAuth(os.environ["REST_USER"], os.environ["REST_PASSWORD"]
 
 ACTIVITY_CHANNEL_ID = int(os.environ["ACTIVITY_CHANNEL_ID"])
 ALERTS_CHANNEL_ID   = int(os.environ["ALERTS_CHANNEL_ID"])
+BOT_UPDATES_CHANNEL_ID = int(os.environ["BOT_UPDATES_CHANNEL_ID"])
+GITHUB_REPO            = os.environ["GITHUB_REPO"]
 
 _ram_restart_threshold_env = os.environ.get("RAM_RESTART_THRESHOLD_PCT")
 RAM_RESTART_THRESHOLD_PCT = float(_ram_restart_threshold_env) if _ram_restart_threshold_env else None
@@ -50,6 +52,13 @@ VERSION_RE  = re.compile(r'Game version is (v[\d.]+)')
 UPGRADE_LOG_RE = re.compile(
     r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\d+ INFO Packages that will be upgraded: (.+)$'
 )
+RELEASE_NOTE_RE = re.compile(
+    r'^\*\s*(?P<type>\w+)(\([^)]*\))?!?:\s*(?P<desc>.+?)\s+by\s+@\S+\s+in\s+\S+$'
+)
+RELEASE_NOTE_LABELS = {"feat": "🆕 New", "fix": "🛠️ Fixes", "perf": "🛠️ Fixes"}
+# Section display order, derived from RELEASE_NOTE_LABELS itself (first-appearance order,
+# de-duplicated) so the two never drift apart.
+RELEASE_NOTE_SECTION_ORDER = tuple(dict.fromkeys(RELEASE_NOTE_LABELS.values()))
 
 COLOR_CHAT, COLOR_JOIN, COLOR_LEAVE = 0x5865F2, 0x57F287, 0xED4245
 COLOR_SHUTDOWN, COLOR_READY = 0xFEE75C, 0x57F287
@@ -80,6 +89,14 @@ class PalRestClient:
 
 
 rest = PalRestClient()
+
+
+async def fetch_latest_release():
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        r = await client.get(url, headers={"Accept": "application/vnd.github+json"})
+        r.raise_for_status()
+        return r.json()
 
 
 # ---------- Bot setup ----------
@@ -123,11 +140,12 @@ async def broadcast_embed(title, description, color, dt=None, channel_id=ACTIVIT
     channel = bot.get_channel(channel_id)
     if not isinstance(channel, discord.TextChannel):
         log.warning("broadcast failed: channel %s not found or not a text channel", channel_id)
-        return
+        return None
     try:
-        await channel.send(embed=embed)
+        return await channel.send(embed=embed)
     except Exception:
         log.exception("broadcast failed")
+        return None
 
 
 # ---------- Live stats embed (separate channel, pinned, edited in place) ----------
@@ -145,6 +163,10 @@ session_started = {}  # display name -> ISO8601 join timestamp, cleared on leave
 # Safe without _stats_lock only because these dicts are never mutated across an `await`
 # (asyncio is single-threaded); if that changes, guard the mutation with _stats_lock.
 
+# ---------- Last release state (release announcement tracking) ----------
+LAST_RELEASE_PATH = "last_release.json"
+last_release_tag = None  # cached in-memory; mirrors last_release.json on disk
+
 
 def load_player_history():
     global player_history
@@ -161,6 +183,25 @@ def load_player_history():
 def save_player_history():
     with open(PLAYER_HISTORY_PATH, "w") as f:
         json.dump(player_history, f, indent=2)
+
+
+def load_last_release():
+    global last_release_tag
+    try:
+        with open(LAST_RELEASE_PATH) as f:
+            last_release_tag = json.load(f).get("tag")
+    except FileNotFoundError:
+        last_release_tag = None
+    except json.JSONDecodeError:
+        log.warning("last_release.json is corrupt, starting with no cached tag")
+        last_release_tag = None
+
+
+def save_last_release(tag):
+    global last_release_tag
+    last_release_tag = tag
+    with open(LAST_RELEASE_PATH, "w") as f:
+        json.dump({"tag": tag}, f, indent=2)
 
 
 async def record_join(name, dt):
@@ -240,6 +281,31 @@ def format_offline_field(entries, limit):
     if len(entries) > limit:
         lines.append(f"…and {len(entries) - limit} more")
     return "\n".join(lines)
+
+
+def humanize_release_notes(body):
+    grouped = {}
+    for line in body.splitlines():
+        m = RELEASE_NOTE_RE.match(line.strip())
+        if not m:
+            continue
+        label = RELEASE_NOTE_LABELS.get(m.group("type"))
+        if not label:
+            continue
+        desc = m.group("desc").strip()
+        if desc:
+            desc = desc[0].upper() + desc[1:]
+        grouped.setdefault(label, []).append(desc)
+
+    if not grouped:
+        return None
+
+    sections = []
+    for label in RELEASE_NOTE_SECTION_ORDER:
+        if label in grouped:
+            lines = "\n".join(f"• {d}" for d in grouped[label])
+            sections.append(f"{label}\n{lines}")
+    return "\n\n".join(sections)
 
 
 def read_ram_stats():
@@ -395,6 +461,48 @@ async def stats_ticker():
         _last_auto_restart = now
         _auto_restart_task = asyncio.create_task(auto_restart_sequence(pct))
         _auto_restart_task.add_done_callback(_log_auto_restart_failure)
+
+
+@tasks.loop(minutes=5)
+async def release_ticker():
+    global last_release_tag
+    try:
+        release = await fetch_latest_release()
+    except Exception:
+        log.exception("release check failed")
+        return
+
+    tag = release.get("tag_name")
+    if not tag:
+        return
+
+    if last_release_tag is None:
+        # First run with no cached state — seed it without announcing, so
+        # shipping this feature doesn't dump a changelog for a release that
+        # already happened before the bot could track it.
+        save_last_release(tag)
+        return
+
+    if tag == last_release_tag:
+        return
+
+    body = release.get("body") or ""
+    notes = humanize_release_notes(body)
+    if notes is None:
+        notes = body or "No release notes."
+        max_len = 4000
+        if len(notes) > max_len:
+            notes = notes[:max_len] + "…"
+    sent = await broadcast_embed(
+        f"\U0001f389 {tag} released",
+        notes,
+        COLOR_READY,
+        channel_id=BOT_UPDATES_CHANNEL_ID,
+    )
+    if sent:
+        save_last_release(tag)
+    else:
+        log.warning("release announcement failed for %s, will retry next tick", tag)
 
 
 # ---------- Log tailing (same events the original relay.py already captures) ----------
@@ -683,6 +791,7 @@ async def on_ready():
     global _log_tailer_task
     _log_tailer_task = asyncio.create_task(log_tailer())
     stats_ticker.start()
+    release_ticker.start()
     log.info("Logged in as %s", bot.user)
 
 
@@ -691,11 +800,13 @@ async def main():
     if not check_palworld_service():
         raise SystemExit(1)
     load_player_history()
+    load_last_release()
     async with bot:
         await bot.start(BOT_TOKEN)
         # bot.start() returns once the bot is closed (e.g. Ctrl+C) — clean up
         # the background task and REST client rather than leaving them dangling.
         stats_ticker.cancel()
+        release_ticker.cancel()
         if _log_tailer_task:
             _log_tailer_task.cancel()
         await rest.client.aclose()
