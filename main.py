@@ -896,6 +896,7 @@ async def main():
         raise SystemExit(1)
     load_player_history()
     load_last_release()
+    load_last_palworld_settings()
     async with bot:
         await bot.start(BOT_TOKEN)
         # bot.start() returns once the bot is closed (e.g. Ctrl+C) — clean up
