@@ -612,24 +612,27 @@ async def check_palworld_settings_change():
         log.warning("failed to read/parse PalWorldSettings.ini, skipping settings-change check", exc_info=True)
         return
 
-    if last_palworld_settings is None:
-        # First-ever check — seed the baseline without announcing, so shipping this
-        # feature doesn't dump every existing setting as "changed" on first deploy.
+    try:
+        if last_palworld_settings is None:
+            # First-ever check — seed the baseline without announcing, so shipping this
+            # feature doesn't dump every existing setting as "changed" on first deploy.
+            save_last_palworld_settings(new_settings)
+            return
+
+        changes = diff_palworld_settings(last_palworld_settings, new_settings)
+        if not changes:
+            return
+
         save_last_palworld_settings(new_settings)
-        return
-
-    changes = diff_palworld_settings(last_palworld_settings, new_settings)
-    if not changes:
-        return
-
-    save_last_palworld_settings(new_settings)
-    await broadcast_embed(
-        "Palworld settings changed",
-        None,
-        COLOR_SHUTDOWN,
-        channel_id=ALERTS_CHANNEL_ID,
-        fields=format_settings_change_fields(changes),
-    )
+        await broadcast_embed(
+            "Palworld settings changed",
+            None,
+            COLOR_SHUTDOWN,
+            channel_id=ALERTS_CHANNEL_ID,
+            fields=format_settings_change_fields(changes),
+        )
+    except Exception:
+        log.exception("settings-change check failed after parsing PalWorldSettings.ini")
 
 
 async def log_tailer():
