@@ -3,6 +3,9 @@ name: Deploy
 on:
   push:
     branches: [main]
+    paths:
+      - main.py
+      - requirements.txt
 
 jobs:
   deploy:
