@@ -34,6 +34,7 @@ ACTIVITY_CHANNEL_ID = int(os.environ["ACTIVITY_CHANNEL_ID"])
 ALERTS_CHANNEL_ID   = int(os.environ["ALERTS_CHANNEL_ID"])
 BOT_UPDATES_CHANNEL_ID = int(os.environ["BOT_UPDATES_CHANNEL_ID"])
 GITHUB_REPO            = os.environ["GITHUB_REPO"]
+PALWORLD_SETTINGS_INI_PATH = os.environ["PALWORLD_SETTINGS_INI_PATH"]
 
 _ram_restart_threshold_env = os.environ.get("RAM_RESTART_THRESHOLD_PCT")
 RAM_RESTART_THRESHOLD_PCT = float(_ram_restart_threshold_env) if _ram_restart_threshold_env else None
