@@ -52,6 +52,10 @@ VERSION_RE  = re.compile(r'Game version is (v[\d.]+)')
 UPGRADE_LOG_RE = re.compile(
     r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\d+ INFO Packages that will be upgraded: (.+)$'
 )
+RELEASE_NOTE_RE = re.compile(
+    r'^\*\s*(?P<type>\w+)(\([^)]*\))?!?:\s*(?P<desc>.+?)\s+by\s+@\S+\s+in\s+\S+$'
+)
+RELEASE_NOTE_LABELS = {"feat": "🆕 New", "fix": "🛠️ Fixes", "perf": "🛠️ Fixes"}
 
 COLOR_CHAT, COLOR_JOIN, COLOR_LEAVE = 0x5865F2, 0x57F287, 0xED4245
 COLOR_SHUTDOWN, COLOR_READY = 0xFEE75C, 0x57F287
@@ -242,6 +246,31 @@ def format_offline_field(entries, limit):
     if len(entries) > limit:
         lines.append(f"…and {len(entries) - limit} more")
     return "\n".join(lines)
+
+
+def humanize_release_notes(body):
+    grouped = {}
+    for line in body.splitlines():
+        m = RELEASE_NOTE_RE.match(line.strip())
+        if not m:
+            continue
+        label = RELEASE_NOTE_LABELS.get(m.group("type"))
+        if not label:
+            continue
+        desc = m.group("desc").strip()
+        if desc:
+            desc = desc[0].upper() + desc[1:]
+        grouped.setdefault(label, []).append(desc)
+
+    if not grouped:
+        return None
+
+    sections = []
+    for label in ("🆕 New", "🛠️ Fixes"):
+        if label in grouped:
+            lines = "\n".join(f"• {d}" for d in grouped[label])
+            sections.append(f"{label}\n{lines}")
+    return "\n\n".join(sections)
 
 
 def read_ram_stats():
