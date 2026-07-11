@@ -604,6 +604,34 @@ async def release_ticker():
 _log_tailer_task = None  # keeps a strong reference so asyncio doesn't GC it mid-run
 
 
+async def check_palworld_settings_change():
+    global last_palworld_settings
+    try:
+        new_settings = await asyncio.to_thread(parse_palworld_settings, PALWORLD_SETTINGS_INI_PATH)
+    except Exception:
+        log.warning("failed to read/parse PalWorldSettings.ini, skipping settings-change check", exc_info=True)
+        return
+
+    if last_palworld_settings is None:
+        # First-ever check — seed the baseline without announcing, so shipping this
+        # feature doesn't dump every existing setting as "changed" on first deploy.
+        save_last_palworld_settings(new_settings)
+        return
+
+    changes = diff_palworld_settings(last_palworld_settings, new_settings)
+    if not changes:
+        return
+
+    save_last_palworld_settings(new_settings)
+    await broadcast_embed(
+        "Palworld settings changed",
+        None,
+        COLOR_SHUTDOWN,
+        channel_id=ALERTS_CHANNEL_ID,
+        fields=format_settings_change_fields(changes),
+    )
+
+
 async def log_tailer():
     # journalctl can exit on its own (log rotation, service hiccup, etc.); without
     # this loop a single exit would silently kill the relay for good.
@@ -660,6 +688,7 @@ async def log_tailer():
                     elif m := VERSION_RE.search(msg):
                         if not _bot_restart_in_progress:
                             await broadcast_embed("Server is online", f"Game version: `{m.group(1)}`", COLOR_READY, dt, channel_id=ALERTS_CHANNEL_ID)
+                        await check_palworld_settings_change()
             log.warning("log tailer: journalctl stream ended, restarting in 5s")
         except Exception:
             log.exception("log tailer crashed, restarting in 5s")
