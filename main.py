@@ -56,7 +56,7 @@ UPGRADE_LOG_RE = re.compile(
 RELEASE_NOTE_RE = re.compile(
     r'^\*\s*(?P<type>\w+)(\([^)]*\))?!?:\s*(?P<desc>.+?)\s+by\s+@\S+\s+in\s+\S+$'
 )
-RELEASE_NOTE_LABELS = {"feat": "🆕 New", "fix": "🛠️ Fixes", "perf": "🛠️ Fixes"}
+RELEASE_NOTE_LABELS = {"feat": "New", "fix": "Fixes", "perf": "Fixes"}
 # Section display order, derived from RELEASE_NOTE_LABELS itself (first-appearance order,
 # de-duplicated) so the two never drift apart.
 RELEASE_NOTE_SECTION_ORDER = tuple(dict.fromkeys(RELEASE_NOTE_LABELS.values()))
@@ -399,7 +399,7 @@ def humanize_release_notes(body):
     for label in RELEASE_NOTE_SECTION_ORDER:
         if label in grouped:
             lines = "\n".join(f"• {d}" for d in grouped[label])
-            sections.append(f"{label}\n{lines}")
+            sections.append(f"**{label}**\n{lines}")
     return "\n\n".join(sections)
 
 
@@ -589,7 +589,7 @@ async def release_ticker():
         if len(notes) > max_len:
             notes = notes[:max_len] + "…"
     sent = await broadcast_embed(
-        f"\U0001f389 {tag} released",
+        f"{tag} released",
         notes,
         COLOR_READY,
         channel_id=BOT_UPDATES_CHANNEL_ID,
