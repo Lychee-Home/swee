@@ -44,16 +44,20 @@ else
     chmod 600 .env
 fi
 
-echo "==> Checking palworld.service"
-LOAD_STATE="$(systemctl show -p LoadState --value palworld 2>/dev/null || true)"
+PALWORLD_SERVICE_NAME="$(grep -E '^PALWORLD_SERVICE_NAME=' .env | cut -d= -f2- || true)"
+PALWORLD_SERVICE_NAME="${PALWORLD_SERVICE_NAME:-palworld}"
+
+echo "==> Checking ${PALWORLD_SERVICE_NAME}.service"
+LOAD_STATE="$(systemctl show -p LoadState --value "$PALWORLD_SERVICE_NAME" 2>/dev/null || true)"
 if [ "$LOAD_STATE" != "loaded" ]; then
-    echo "    WARNING: palworld.service not found (LoadState=${LOAD_STATE:-unknown})."
-    echo "    The bot's /restart command and RAM auto-restart need a systemd unit named exactly 'palworld'."
+    echo "    WARNING: ${PALWORLD_SERVICE_NAME}.service not found (LoadState=${LOAD_STATE:-unknown})."
+    echo "    The bot's /restart command and RAM auto-restart need a systemd unit named '${PALWORLD_SERVICE_NAME}'"
+    echo "    (set PALWORLD_SERVICE_NAME in .env if your unit has a different name)."
 fi
 
-echo "==> Checking passwordless sudo for 'systemctl restart palworld'"
+echo "==> Checking passwordless sudo for 'systemctl restart ${PALWORLD_SERVICE_NAME}'"
 SUDOERS_FILE="/etc/sudoers.d/swee-palworld-restart"
-SUDOERS_LINE="$SWEE_USER ALL=(root) NOPASSWD: /usr/bin/systemctl restart palworld"
+SUDOERS_LINE="$SWEE_USER ALL=(root) NOPASSWD: /usr/bin/systemctl restart $PALWORLD_SERVICE_NAME"
 if [ "$(sudo cat "$SUDOERS_FILE" 2>/dev/null || true)" != "$SUDOERS_LINE" ]; then
     TMP_SUDOERS="$(mktemp)"
     echo "$SUDOERS_LINE" > "$TMP_SUDOERS"
@@ -81,7 +85,7 @@ fi
 
 echo "==> Installing systemd unit"
 UNIT_DEST="/etc/systemd/system/swee.service"
-RENDERED_UNIT="$(sed -e "s#__SWEE_USER__#${SWEE_USER}#g" -e "s#__SWEE_DIR__#${SWEE_DIR}#g" deploy/swee.service)"
+RENDERED_UNIT="$(sed -e "s#__SWEE_USER__#${SWEE_USER}#g" -e "s#__SWEE_DIR__#${SWEE_DIR}#g" -e "s#__PALWORLD_SERVICE__#${PALWORLD_SERVICE_NAME}#g" deploy/swee.service)"
 if [ "$(sudo cat "$UNIT_DEST" 2>/dev/null || true)" != "$RENDERED_UNIT" ]; then
     echo "$RENDERED_UNIT" | sudo tee "$UNIT_DEST" >/dev/null
     sudo systemctl daemon-reload

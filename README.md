@@ -8,7 +8,7 @@ actions (save, kick, ban, broadcast, restart).
 
 - **Palworld REST API** (`REST_HOST`/`REST_PORT`) — used for server info, player list, metrics,
   announcements, saves, kicks, and bans.
-- **`journalctl -u palworld -f`** — tailed for chat/join/leave/shutdown/version log lines. Join/leave
+- **`journalctl -u $PALWORLD_SERVICE_NAME -f`** (`palworld` by default) — tailed for chat/join/leave/shutdown/version log lines. Join/leave
   and chat relay are posted to `ACTIVITY_CHANNEL_ID` as embeds; server shutdown and server-online
   messages go to `ALERTS_CHANNEL_ID` instead.
 - **Unplanned-restart notification** — a shutdown triggered by `/restart` or the RAM auto-restart
@@ -22,7 +22,7 @@ actions (save, kick, ban, broadcast, restart).
   on join/leave) with player count, FPS, uptime, version, and host system RAM usage (read from
   `/proc/meminfo`, so this must run on Linux, on the same box as the game server).
 - **RAM auto-restart** (optional) — if `RAM_RESTART_THRESHOLD_PCT` is set, the stats ticker
-  restarts the `palworld` service whenever host RAM usage crosses that percentage. Players get
+  restarts the Palworld service (`PALWORLD_SERVICE_NAME`, `palworld` by default) whenever host RAM usage crosses that percentage. Players get
   an `ALERTS_CHANNEL_ID` warning and an in-game announcement `RAM_RESTART_WARNING_SEC`
   (default 60s) before the restart fires, and a `RAM_RESTART_COOLDOWN_MIN` (default 15min)
   cooldown prevents repeat triggers while the server is still booting back up. The restart result
@@ -69,18 +69,20 @@ Slash commands are synced to `GUILD_ID` on startup. Admin-only commands (`save`,
 `systemctl`/`/proc`, and `log_tailer` shells out to `journalctl`, so the bot must run on the same
 Linux host as the Palworld service — it will not run as-is on Windows.
 
-The systemd unit managing the Palworld service must be named exactly `palworld`. Additionally, the
-user running the bot must have passwordless `sudo` configured for the `systemctl restart palworld`
-command (e.g. via a `NOPASSWD` sudoers entry) — otherwise the bot exits immediately at startup with
-a clear error in the log.
+The systemd unit managing the Palworld service defaults to `palworld` — set `PALWORLD_SERVICE_NAME`
+in `.env` if yours is named differently (e.g. when running multiple Palworld servers on one host).
+Additionally, the user running the bot must have passwordless `sudo` configured for the
+`systemctl restart <PALWORLD_SERVICE_NAME>` command (e.g. via a `NOPASSWD` sudoers entry) —
+otherwise the bot exits immediately at startup with a clear error in the log.
 
 ## Deployment
 
 For a Linux host you set up once and leave running, `deploy/setup.sh` automates the steps above
 plus the systemd wiring: it creates the venv, installs dependencies, copies `.env.example` to
-`.env` (without overwriting an existing one), checks that `palworld.service` exists, installs a
-passwordless-sudo rule scoped to `systemctl restart palworld`, and installs/enables a
-`swee.service` unit (rendered from `deploy/swee.service`). It's safe to re-run — it skips any step
+`.env` (without overwriting an existing one), checks that the configured Palworld service (from
+`PALWORLD_SERVICE_NAME` in `.env`, `palworld` by default) exists, installs a passwordless-sudo rule
+scoped to restarting it, and installs/enables a `swee.service` unit (rendered from
+`deploy/swee.service`). It's safe to re-run — it skips any step
 that's already in the desired state.
 
 ```
