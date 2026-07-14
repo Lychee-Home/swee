@@ -35,6 +35,8 @@ actions (save, kick, ban, broadcast, restart).
   grouped into "New"/"Fixes") and posts an embed to `BOT_UPDATES_CHANNEL_ID`. The last
   announced tag is cached in `last_release.json`; deleting that file makes the bot
   re-seed from the current latest release on next startup without re-announcing it.
+  If `GITHUB_REPO` is private, set `GITHUB_TOKEN` to a token with read access — unauthenticated
+  requests to the GitHub API 404 on private repos instead of returning release data.
 - **Settings-change alert** — every time the server comes back online after a restart (planned
   or unplanned), the bot reads `PALWORLD_SETTINGS_INI_PATH` and
   compares it to the last-seen snapshot (`last_palworld_settings.json`). Any added, removed, or
