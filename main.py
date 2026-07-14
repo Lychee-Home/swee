@@ -34,6 +34,7 @@ ACTIVITY_CHANNEL_ID = int(os.environ["ACTIVITY_CHANNEL_ID"])
 ALERTS_CHANNEL_ID   = int(os.environ["ALERTS_CHANNEL_ID"])
 BOT_UPDATES_CHANNEL_ID = int(os.environ["BOT_UPDATES_CHANNEL_ID"])
 GITHUB_REPO            = os.environ["GITHUB_REPO"]
+GITHUB_TOKEN           = os.environ.get("GITHUB_TOKEN")
 PALWORLD_SETTINGS_INI_PATH = os.environ["PALWORLD_SETTINGS_INI_PATH"]
 PALWORLD_SERVICE_NAME = os.environ.get("PALWORLD_SERVICE_NAME", "palworld")
 
@@ -137,8 +138,11 @@ rest = PalRestClient()
 
 async def fetch_latest_release():
     url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+    headers = {"Accept": "application/vnd.github+json"}
+    if GITHUB_TOKEN:
+        headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
     async with httpx.AsyncClient(timeout=10.0) as client:
-        r = await client.get(url, headers={"Accept": "application/vnd.github+json"})
+        r = await client.get(url, headers=headers)
         r.raise_for_status()
         return r.json()
 
