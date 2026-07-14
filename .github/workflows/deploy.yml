@@ -14,9 +14,15 @@ jobs:
       - name: Pull latest and restart service
         env:
           SWEE_DIR: ${{ vars.SWEE_DIR }}
+          SWEE_USER: ${{ vars.SWEE_USER }}
         run: |
           set -euo pipefail
-          cd "${SWEE_DIR:-$HOME/swee}"
-          git pull --ff-only origin main
-          .venv/bin/pip install -q -r requirements.txt
+          : "${SWEE_DIR:?SWEE_DIR repo variable must be set}"
+          if [ -n "${SWEE_USER:-}" ]; then
+            sudo -u "$SWEE_USER" -H "$SWEE_DIR/deploy/ci-deploy.sh"
+          else
+            cd "$SWEE_DIR"
+            git pull --ff-only origin main
+            .venv/bin/pip install -q -r requirements.txt
+          fi
           sudo systemctl restart swee
