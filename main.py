@@ -721,7 +721,10 @@ def _read_last_lines(path, n):
 async def detect_unattended_upgrades(shutdown_dt):
     try:
         lines = await asyncio.to_thread(_read_last_lines, UNATTENDED_UPGRADES_LOG, 100)
+    except FileNotFoundError:
+        return None
     except OSError:
+        log.warning("cause detector: cannot read %s", UNATTENDED_UPGRADES_LOG, exc_info=True)
         return None
 
     for line in reversed(lines):
