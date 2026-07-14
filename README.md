@@ -106,6 +106,22 @@ inbound access to the host is required since the runner polls GitHub outbound; `
 installs the passwordless-sudo rule (`systemctl restart swee`) the workflow needs to restart the
 service non-interactively.
 
+By default the runner is assumed to run as the same OS user `swee` itself runs as (matching
+`deploy/setup.sh`'s default). To run the GitHub Actions runner as a separate, dedicated OS user instead
+(recommended once this host runs apps beyond this one) — so the runner never needs direct file access to
+any app's directory — set both of the following together:
+
+- Run `deploy/setup.sh` with `RUNNER_USER=<runner's OS user>` set, e.g.
+  `RUNNER_USER=github-runner ./deploy/setup.sh`. This grants `<runner's OS user>` passwordless sudo to run
+  `deploy/ci-deploy.sh` as `swee`'s own OS user, and to restart `swee.service`.
+- Set the `SWEE_USER` repo variable (alongside the existing `SWEE_DIR`) to `swee`'s own OS user. This
+  tells `deploy.yml` to delegate deploys via `sudo -u "$SWEE_USER" deploy/ci-deploy.sh` instead of running
+  `git pull`/`pip install` directly.
+
+Leave both unset to keep the current single-user behavior, where the runner's own OS user must already
+have write access to `$SWEE_DIR`. `swee.service`'s own `User=` and the bot's own Palworld-restart sudo
+rule are unaffected either way — only the CI identity changes.
+
 ### Versioning
 
 Releases are tagged automatically. Every PR title must follow [Conventional
