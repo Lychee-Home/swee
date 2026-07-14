@@ -56,7 +56,8 @@ cp .env.example .env
 Fill in `.env` with your bot token, guild/channel/role IDs, and Palworld REST credentials, then
 restrict its permissions (`chmod 600 .env` on Linux — it holds secrets).
 `RAM_RESTART_THRESHOLD_PCT` and its companions are optional — leave them unset to keep
-auto-restart disabled.
+auto-restart disabled. `GITHUB_TOKEN` is likewise optional — only required if `GITHUB_REPO` is
+private.
 
 You can edit and install dependencies on any OS, but the bot itself must **run** on Linux (see below).
 
