@@ -13,6 +13,7 @@ set -euo pipefail
 
 SWEE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SWEE_USER="$(whoami)"
+RUNNER_USER="${RUNNER_USER:-}"
 PYTHON_BIN="python3.14"
 
 cd "$SWEE_DIR"
@@ -69,9 +70,10 @@ else
     echo "    Already configured, skipping"
 fi
 
-echo "==> Checking passwordless sudo for 'systemctl restart swee'"
+CI_RESTART_USER="${RUNNER_USER:-$SWEE_USER}"
+echo "==> Checking passwordless sudo for 'systemctl restart swee' (as $CI_RESTART_USER)"
 SWEE_SUDOERS_FILE="/etc/sudoers.d/swee-self-restart"
-SWEE_SUDOERS_LINE="$SWEE_USER ALL=(root) NOPASSWD: /usr/bin/systemctl restart swee"
+SWEE_SUDOERS_LINE="$CI_RESTART_USER ALL=(root) NOPASSWD: /usr/bin/systemctl restart swee"
 if [ "$(sudo cat "$SWEE_SUDOERS_FILE" 2>/dev/null || true)" != "$SWEE_SUDOERS_LINE" ]; then
     TMP_SUDOERS="$(mktemp)"
     echo "$SWEE_SUDOERS_LINE" > "$TMP_SUDOERS"
@@ -81,6 +83,26 @@ if [ "$(sudo cat "$SWEE_SUDOERS_FILE" 2>/dev/null || true)" != "$SWEE_SUDOERS_LI
     echo "    Installed $SWEE_SUDOERS_FILE"
 else
     echo "    Already configured, skipping"
+fi
+
+if [ -n "$RUNNER_USER" ]; then
+    echo "==> Checking passwordless sudo for '$RUNNER_USER' to run ci-deploy.sh as $SWEE_USER"
+    CI_DEPLOY_SUDOERS_FILE="/etc/sudoers.d/swee-ci-deploy"
+    CI_DEPLOY_SUDOERS_LINE="$RUNNER_USER ALL=($SWEE_USER) NOPASSWD: $SWEE_DIR/deploy/ci-deploy.sh"
+    if [ "$(sudo cat "$CI_DEPLOY_SUDOERS_FILE" 2>/dev/null || true)" != "$CI_DEPLOY_SUDOERS_LINE" ]; then
+        TMP_SUDOERS="$(mktemp)"
+        echo "$CI_DEPLOY_SUDOERS_LINE" > "$TMP_SUDOERS"
+        sudo visudo -cf "$TMP_SUDOERS"
+        sudo install -m 440 -o root -g root "$TMP_SUDOERS" "$CI_DEPLOY_SUDOERS_FILE"
+        rm -f "$TMP_SUDOERS"
+        echo "    Installed $CI_DEPLOY_SUDOERS_FILE"
+    else
+        echo "    Already configured, skipping"
+    fi
+
+    chmod +x "$SWEE_DIR/deploy/ci-deploy.sh"
+else
+    echo "==> RUNNER_USER not set, skipping separate-runner sudoers setup (CI is assumed to run as $SWEE_USER)"
 fi
 
 echo "==> Installing systemd unit"
