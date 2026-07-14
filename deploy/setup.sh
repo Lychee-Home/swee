@@ -105,6 +105,15 @@ else
     echo "==> RUNNER_USER not set, skipping separate-runner sudoers setup (CI is assumed to run as $SWEE_USER)"
 fi
 
+echo "==> Checking '$SWEE_USER' can read unattended-upgrades logs (adm group)"
+if id -nG "$SWEE_USER" | tr ' ' '\n' | grep -qx adm; then
+    echo "    Already in adm group, skipping"
+else
+    sudo usermod -aG adm "$SWEE_USER"
+    echo "    Added $SWEE_USER to adm group — needed to read /var/log/unattended-upgrades/*"
+    echo "    for the unplanned-restart cause detector; takes effect on next swee.service (re)start"
+fi
+
 echo "==> Installing systemd unit"
 UNIT_DEST="/etc/systemd/system/swee.service"
 RENDERED_UNIT="$(sed -e "s#__SWEE_USER__#${SWEE_USER}#g" -e "s#__SWEE_DIR__#${SWEE_DIR}#g" -e "s#__PALWORLD_SERVICE__#${PALWORLD_SERVICE_NAME}#g" deploy/swee.service)"
