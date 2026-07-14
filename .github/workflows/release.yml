@@ -1,11 +1,9 @@
 name: Release
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - main.py
-      - requirements.txt
+  workflow_run:
+    workflows: [Deploy]
+    types: [completed]
 
 permissions:
   contents: write
@@ -13,9 +11,11 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
           fetch-tags: true
 
