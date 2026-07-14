@@ -35,6 +35,7 @@ ALERTS_CHANNEL_ID   = int(os.environ["ALERTS_CHANNEL_ID"])
 BOT_UPDATES_CHANNEL_ID = int(os.environ["BOT_UPDATES_CHANNEL_ID"])
 GITHUB_REPO            = os.environ["GITHUB_REPO"]
 PALWORLD_SETTINGS_INI_PATH = os.environ["PALWORLD_SETTINGS_INI_PATH"]
+PALWORLD_SERVICE_NAME = os.environ.get("PALWORLD_SERVICE_NAME", "palworld")
 
 _ram_restart_threshold_env = os.environ.get("RAM_RESTART_THRESHOLD_PCT")
 RAM_RESTART_THRESHOLD_PCT = float(_ram_restart_threshold_env) if _ram_restart_threshold_env else None
@@ -644,7 +645,7 @@ async def log_tailer():
     while True:
         try:
             proc = await asyncio.create_subprocess_exec(
-                "journalctl", "-u", "palworld", "-f", "-n", "0", "-o", "json", "--no-pager",
+                "journalctl", "-u", PALWORLD_SERVICE_NAME, "-f", "-n", "0", "-o", "json", "--no-pager",
                 stdout=asyncio.subprocess.PIPE,
             )
             assert proc.stdout is not None
@@ -848,20 +849,20 @@ async def broadcast(interaction: discord.Interaction, message: str):
 
 def check_palworld_service():
     load_state = subprocess.run(
-        ["systemctl", "show", "-p", "LoadState", "--value", "palworld"],
+        ["systemctl", "show", "-p", "LoadState", "--value", PALWORLD_SERVICE_NAME],
         capture_output=True, text=True,
     ).stdout.strip()
     if load_state != "loaded":
-        log.error("palworld.service not found (LoadState=%s) — check the unit is installed", load_state or "unknown")
+        log.error("%s.service not found (LoadState=%s) — check the unit is installed", PALWORLD_SERVICE_NAME, load_state or "unknown")
         return False
 
     sudo_check = subprocess.run(
-        ["sudo", "-n", "-l", "systemctl", "restart", "palworld"], capture_output=True,
+        ["sudo", "-n", "-l", "systemctl", "restart", PALWORLD_SERVICE_NAME], capture_output=True,
     )
     if sudo_check.returncode != 0:
         log.error(
-            "passwordless sudo for 'systemctl restart palworld' not configured for this user "
-            "— /restart and RAM auto-restart will hang"
+            "passwordless sudo for 'systemctl restart %s' not configured for this user "
+            "— /restart and RAM auto-restart will hang", PALWORLD_SERVICE_NAME
         )
         return False
 
@@ -869,7 +870,7 @@ def check_palworld_service():
 
 
 async def restart_palworld(on_progress=None):
-    proc = await asyncio.create_subprocess_exec("sudo", "systemctl", "restart", "palworld")
+    proc = await asyncio.create_subprocess_exec("sudo", "systemctl", "restart", PALWORLD_SERVICE_NAME)
     await proc.wait()
 
     if on_progress:
@@ -895,7 +896,7 @@ async def restart_palworld(on_progress=None):
         embed.title = "Restart timed out"
         embed.add_field(
             name="Status",
-            value=f"No response after {timeout}s \u2014 check `journalctl -u palworld`",
+            value=f"No response after {timeout}s \u2014 check `journalctl -u {PALWORLD_SERVICE_NAME}`",
         )
     return embed
 
