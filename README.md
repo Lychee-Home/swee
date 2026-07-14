@@ -15,7 +15,7 @@ actions (save, kick, ban, broadcast, restart).
   posts the plain "Server shutting down" message as above. Any other shutdown (host-level restart,
   crash, a package upgrade cycling the service, etc.) instead posts "Server restarted unexpectedly"
   with a best-effort "Likely cause" field. The cause is filled in by a small extensible list of
-  detectors (`CAUSE_DETECTORS` in `main.py`) — currently one, which recognizes an
+  detectors (`CAUSE_DETECTORS` in `swee/cause_detection.py`) — currently one, which recognizes an
   `unattended-upgrades` package install immediately preceding the restart (the `needrestart`
   pattern). No match falls back to "Unknown — an admin will need to check the server logs."
 - **Stats embed** — a single pinned message in `STATS_CHANNEL_ID`, edited in place every minute (and
