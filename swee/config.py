@@ -24,6 +24,8 @@ GITHUB_REPO            = os.environ["GITHUB_REPO"]
 GITHUB_TOKEN           = os.environ.get("GITHUB_TOKEN")
 PALWORLD_SETTINGS_INI_PATH = os.environ["PALWORLD_SETTINGS_INI_PATH"]
 PALWORLD_SERVICE_NAME = os.environ.get("PALWORLD_SERVICE_NAME", "palworld")
+PALWORLD_INSTALL_DIR = os.environ["PALWORLD_INSTALL_DIR"]
+STEAMCMD_PATH = os.environ.get("STEAMCMD_PATH", "/usr/games/steamcmd")
 
 _ram_restart_threshold_env = os.environ.get("RAM_RESTART_THRESHOLD_PCT")
 RAM_RESTART_THRESHOLD_PCT = float(_ram_restart_threshold_env) if _ram_restart_threshold_env else None
