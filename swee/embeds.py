@@ -11,12 +11,12 @@ from swee.ram import get_ram_usage
 log = logging.getLogger("swee")
 
 
-async def broadcast_embed(title, description, color, dt=None, channel_id=ACTIVITY_CHANNEL_ID, fields=None):
+async def broadcast_embed(title, description, color, dt=None, channel_id=ACTIVITY_CHANNEL_ID, fields=None, fields_inline=True):
     embed = discord.Embed(title=title, description=description, color=color)
     if dt:
         embed.timestamp = dt
     for name, value in fields or []:
-        embed.add_field(name=name, value=value)
+        embed.add_field(name=name, value=value, inline=fields_inline)
     channel = bot.get_channel(channel_id)
     if not isinstance(channel, discord.TextChannel):
         log.warning("broadcast failed: channel %s not found or not a text channel", channel_id)
