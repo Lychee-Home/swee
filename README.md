@@ -47,6 +47,12 @@ actions (save, kick, ban, broadcast, restart).
   from `PALWORLD_SETTINGS_INI_PATH`; `/config set <key> <value>` writes a new value to that file.
   `AdminPassword`/`ServerPassword` can't be read or set through the bot. Like any ini edit, a
   change made via `/config set` only takes effect after the next `restart`.
+- **Server update** — `/update` saves the world, stops the Palworld service, runs `steamcmd`
+  against `PALWORLD_INSTALL_DIR` to update and validate the dedicated server install, then starts
+  the service back up. The shutdown this causes is treated as planned (no "restarted
+  unexpectedly" alert), and the existing "Server is online" log-tailer message reports the new
+  version once it's back up. If `steamcmd` fails, the service is still restarted with the
+  previously-installed files rather than left down.
 
 ## Setup
 
@@ -72,7 +78,8 @@ python main.py
 ```
 
 Slash commands are synced to `GUILD_ID` on startup. Admin-only commands (`save`, `kick`, `ban`,
-`broadcast`, `restart`, `config list`, `config get`, `config set`) require `ADMIN_ROLE_ID`.
+`broadcast`, `restart`, `update`, `config list`, `config get`, `config set`) require
+`ADMIN_ROLE_ID`.
 `config set` edits `PALWORLD_SETTINGS_INI_PATH` directly and does not itself restart the
 server — run `restart` afterward to apply the change. `restart` and the RAM reader shell out to
 `systemctl`/`/proc`, and `log_tailer` shells out to `journalctl`, so the bot must run on the same
