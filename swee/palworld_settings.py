@@ -54,6 +54,28 @@ def diff_palworld_settings(old, new):
     return changes
 
 
+def render_option_settings(pairs):
+    return ",".join(f"{k}={v}" for k, v in pairs.items())
+
+
+def write_palworld_setting(path, key, formatted_value):
+    with open(path) as f:
+        content = f.read()
+    m = OPTION_SETTINGS_RE.search(content)
+    if not m:
+        raise ValueError(f"no OptionSettings line found in {path}")
+    pairs = _parse_option_settings(m.group(1))
+    pairs[key] = formatted_value
+    new_inner = render_option_settings(pairs)
+    new_content = content[:m.start(1)] + new_inner + content[m.end(1):]
+    with open(path, "w") as f:
+        f.write(new_content)
+
+
+def visible_settings(path):
+    return {k: v for k, v in parse_palworld_settings(path).items() if k not in REDACTED_SETTINGS_KEYS}
+
+
 def format_settings_change_fields(changes):
     fields = []
     # If more than 25 changes, only show 24 to leave room for the summary field
