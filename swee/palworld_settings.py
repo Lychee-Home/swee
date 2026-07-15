@@ -78,6 +78,12 @@ def write_palworld_setting(path, key, formatted_value):
     try:
         with os.fdopen(fd, "w") as f:
             f.write(new_content)
+        try:
+            original_stat = os.stat(path)
+            os.chmod(tmp_path, original_stat.st_mode)
+            os.chown(tmp_path, original_stat.st_uid, original_stat.st_gid)
+        except (OSError, AttributeError):
+            pass  # os.chown doesn't exist on Windows; permission mismatch is non-fatal elsewhere
         os.replace(tmp_path, path)
     except Exception:
         try:
