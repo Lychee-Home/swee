@@ -11,6 +11,7 @@ from swee.embeds import add_status_fields, format_offline_field, format_online_f
 from swee.player_history import online_players, player_history, refresh_online_players, session_started
 from swee.rest_client import rest
 from swee.restart import restart_palworld
+from swee.server_update import update_palworld
 
 log = logging.getLogger("swee")
 
@@ -90,6 +91,24 @@ async def restart(interaction: discord.Interaction):
         result_embed = await restart_palworld(on_progress)
     finally:
         restart_module._bot_restart_in_progress = False
+    await interaction.edit_original_response(embed=result_embed)
+
+
+@bot.tree.command(description="Update the Palworld server via steamcmd")
+@is_admin()
+async def update(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="Updating Palworld server",
+        color=COLOR_SHUTDOWN,
+    )
+    embed.add_field(name="Status", value="Saving world…")
+    await interaction.response.send_message(embed=embed)
+
+    async def on_progress(status):
+        embed.set_field_at(0, name="Status", value=status)
+        await interaction.edit_original_response(embed=embed)
+
+    result_embed = await update_palworld(on_progress)
     await interaction.edit_original_response(embed=result_embed)
 
 
