@@ -1,6 +1,7 @@
 import logging
 
 import discord
+import httpx
 from discord import app_commands
 
 import swee.restart as restart_module
@@ -98,7 +99,10 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
         return  # predicate (is_admin/in_commands_channel) already sent its own response
 
     command_name = interaction.command.name if interaction.command else "?"
-    log.exception("command error in /%s", command_name, exc_info=error)
+    if isinstance(getattr(error, "original", error), httpx.ConnectError):
+        log.warning("command error in /%s: Palworld REST API unreachable", command_name)
+    else:
+        log.exception("command error in /%s", command_name, exc_info=error)
 
     message = "Something went wrong talking to the server."
     if interaction.response.is_done():
