@@ -2,6 +2,8 @@ import json
 import logging
 from datetime import datetime, timezone
 
+import httpx
+
 from swee.config import PACIFIC
 from swee.rest_client import rest
 
@@ -39,6 +41,9 @@ def save_player_history():
 async def record_join(name, dt):
     try:
         data = await rest.players()
+    except httpx.ConnectError:
+        log.warning("player history: Palworld REST API unreachable, skipping join record for %s", name)
+        return
     except Exception:
         log.exception("player history: failed to fetch players on join for %s", name)
         return
