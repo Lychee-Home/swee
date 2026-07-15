@@ -120,6 +120,14 @@ class FormatNewValueTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             format_new_value("1.000000", "True")
 
+    def test_string_rejects_newline(self):
+        with self.assertRaises(ValueError):
+            format_new_value('"My Server"', "line1\nline2")
+
+    def test_token_rejects_newline(self):
+        with self.assertRaises(ValueError):
+            format_new_value("None", "line1\nline2")
+
 
 if __name__ == "__main__":
     unittest.main()

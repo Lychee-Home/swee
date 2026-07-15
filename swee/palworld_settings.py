@@ -1,4 +1,6 @@
+import os
 import re
+import tempfile
 
 OPTION_SETTINGS_RE = re.compile(r'OptionSettings=\((.*)\)\s*$')
 
@@ -70,8 +72,19 @@ def write_palworld_setting(path, key, formatted_value):
     pairs[key] = formatted_value
     new_inner = render_option_settings(pairs)
     new_content = content[:m.start(1)] + new_inner + content[m.end(1):]
-    with open(path, "w") as f:
-        f.write(new_content)
+
+    directory = os.path.dirname(path) or "."
+    fd, tmp_path = tempfile.mkstemp(dir=directory)
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(new_content)
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def visible_settings(path):
@@ -104,11 +117,15 @@ def format_new_value(current_value, raw_input):
         return stripped
 
     if category == "string":
+        if '\n' in raw_input or '\r' in raw_input:
+            raise ValueError('value cannot contain a newline or carriage return')
         if '"' in raw_input:
             raise ValueError('value cannot contain a literal `"` character')
         return f'"{raw_input}"'
 
     # token
+    if '\n' in raw_input or '\r' in raw_input:
+        raise ValueError('value cannot contain a newline or carriage return')
     if any(c in raw_input for c in ' ,"()'):
         raise ValueError(
             f"expected a plain value with no spaces, commas, quotes, or parens — got {raw_input!r}"
