@@ -3,6 +3,8 @@ import tempfile
 import unittest
 
 from swee.palworld_settings import (
+    classify_value,
+    format_new_value,
     parse_palworld_settings,
     render_option_settings,
     visible_settings,
@@ -66,6 +68,57 @@ class VisibleSettingsTests(unittest.TestCase):
         settings = visible_settings(self.path)
         self.assertNotIn("AdminPassword", settings)
         self.assertEqual(settings["Difficulty"], "None")
+
+
+class ClassifyValueTests(unittest.TestCase):
+    def test_bool(self):
+        self.assertEqual(classify_value("True"), "bool")
+        self.assertEqual(classify_value("False"), "bool")
+
+    def test_number(self):
+        self.assertEqual(classify_value("1.000000"), "number")
+        self.assertEqual(classify_value("-5"), "number")
+
+    def test_string(self):
+        self.assertEqual(classify_value('"My Server"'), "string")
+
+    def test_token(self):
+        self.assertEqual(classify_value("None"), "token")
+
+
+class FormatNewValueTests(unittest.TestCase):
+    def test_bool_accepts_case_insensitive(self):
+        self.assertEqual(format_new_value("False", "true"), "True")
+        self.assertEqual(format_new_value("True", "FALSE"), "False")
+
+    def test_bool_rejects_non_bool(self):
+        with self.assertRaises(ValueError):
+            format_new_value("True", "1")
+
+    def test_number_accepts_number(self):
+        self.assertEqual(format_new_value("1.000000", "2.5"), "2.5")
+
+    def test_number_rejects_non_number(self):
+        with self.assertRaises(ValueError):
+            format_new_value("1.000000", "abc")
+
+    def test_string_wraps_in_quotes(self):
+        self.assertEqual(format_new_value('"My Server"', "New Name"), '"New Name"')
+
+    def test_string_rejects_embedded_quote(self):
+        with self.assertRaises(ValueError):
+            format_new_value('"My Server"', 'bad "name"')
+
+    def test_token_accepts_bare_word(self):
+        self.assertEqual(format_new_value("None", "Hard"), "Hard")
+
+    def test_token_rejects_spaces(self):
+        with self.assertRaises(ValueError):
+            format_new_value("None", "not valid")
+
+    def test_category_switch_rejected(self):
+        with self.assertRaises(ValueError):
+            format_new_value("1.000000", "True")
 
 
 if __name__ == "__main__":
