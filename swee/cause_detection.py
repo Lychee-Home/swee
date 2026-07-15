@@ -60,6 +60,7 @@ async def check_palworld_settings_change():
             COLOR_SHUTDOWN,
             channel_id=ALERTS_CHANNEL_ID,
             fields=format_settings_change_fields(changes),
+            fields_inline=False,
         )
         if sent:
             save_last_palworld_settings(new_settings)
