@@ -15,6 +15,7 @@ SAMPLE_INI = (
     '[/Script/Pal.PalGameWorldSettings]\n'
     'OptionSettings=(Difficulty=None,DayTimeSpeedRate=1.000000,'
     'ServerName="My Server",bIsPvP=False,'
+    'CrossplayPlatforms=(Steam,Xbox,PS5,Mac),'
     'AdminPassword="secret",ServerDescription="Hello, world")\n'
 )
 
@@ -45,6 +46,14 @@ class WritePalworldSettingTests(unittest.TestCase):
         self.assertEqual(pairs["Difficulty"], "None")
         self.assertEqual(pairs["ServerName"], '"My Server"')
         self.assertEqual(pairs["ServerDescription"], '"Hello, world"')
+        self.assertEqual(pairs["CrossplayPlatforms"], "(Steam,Xbox,PS5,Mac)")
+
+    def test_parses_parenthesized_list_value_as_one_key(self):
+        pairs = parse_palworld_settings(self.path)
+        self.assertEqual(pairs["CrossplayPlatforms"], "(Steam,Xbox,PS5,Mac)")
+        self.assertNotIn("Xbox", pairs)
+        self.assertNotIn("PS5", pairs)
+        self.assertNotIn("Mac)", pairs)
 
     def test_preserves_surrounding_file_content(self):
         write_palworld_setting(self.path, "Difficulty", "Hard")
@@ -84,6 +93,9 @@ class ClassifyValueTests(unittest.TestCase):
 
     def test_token(self):
         self.assertEqual(classify_value("None"), "token")
+
+    def test_list(self):
+        self.assertEqual(classify_value("(Steam,Xbox,PS5,Mac)"), "list")
 
 
 class FormatNewValueTests(unittest.TestCase):
@@ -127,6 +139,20 @@ class FormatNewValueTests(unittest.TestCase):
     def test_token_rejects_newline(self):
         with self.assertRaises(ValueError):
             format_new_value("None", "line1\nline2")
+
+    def test_list_wraps_in_parens(self):
+        self.assertEqual(
+            format_new_value("(Steam,Xbox,PS5,Mac)", "Steam,Xbox"),
+            "(Steam,Xbox)",
+        )
+
+    def test_list_rejects_parens_in_input(self):
+        with self.assertRaises(ValueError):
+            format_new_value("(Steam,Xbox,PS5,Mac)", "Steam,(Xbox)")
+
+    def test_list_rejects_newline(self):
+        with self.assertRaises(ValueError):
+            format_new_value("(Steam,Xbox,PS5,Mac)", "Steam,\nXbox")
 
 
 if __name__ == "__main__":
