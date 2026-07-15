@@ -4,6 +4,7 @@ import logging
 import discord
 
 import swee.commands  # noqa: F401 — registers slash commands via decorator side effects
+import swee.config_commands  # noqa: F401 — registers slash commands via decorator side effects
 from swee.bot import bot
 from swee.cause_detection import load_last_palworld_settings
 from swee.config import BOT_TOKEN, GUILD_ID, RELAY_CHANNEL_ID
