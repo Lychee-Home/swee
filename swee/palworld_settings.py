@@ -12,9 +12,10 @@ NUMBER_RE = re.compile(r'^-?\d+(\.\d+)?$')
 def _parse_option_settings(text):
     """Split the inner content of OptionSettings=(...) into a {key: value} dict.
 
-    Values are either bare tokens (numbers, enum names, True/False) or double-quoted
-    strings that may contain commas (e.g. ServerDescription="Hello, world") — a plain
-    comma-split would break on those, so this scans char-by-char instead.
+    Values are bare tokens (numbers, enum names, True/False), double-quoted strings
+    that may contain commas (e.g. ServerDescription="Hello, world"), or parenthesized
+    lists that may contain commas (e.g. CrossplayPlatforms=(Steam,Xbox,PS5,Mac)) — a
+    plain comma-split would break on either, so this scans char-by-char instead.
     """
     pairs = {}
     i, n = 0, len(text)
@@ -26,6 +27,19 @@ def _parse_option_settings(text):
             end = text.index('"', i + 1)
             value = text[i:end + 1]
             i = end + 1
+            if i < n and text[i] == ',':
+                i += 1
+        elif i < n and text[i] == '(':
+            depth = 1
+            j = i + 1
+            while j < n and depth > 0:
+                if text[j] == '(':
+                    depth += 1
+                elif text[j] == ')':
+                    depth -= 1
+                j += 1
+            value = text[i:j]
+            i = j
             if i < n and text[i] == ',':
                 i += 1
         else:
@@ -104,6 +118,8 @@ def classify_value(value):
         return "number"
     if len(value) >= 2 and value.startswith('"') and value.endswith('"'):
         return "string"
+    if len(value) >= 2 and value.startswith('(') and value.endswith(')'):
+        return "list"
     return "token"
 
 
@@ -128,6 +144,15 @@ def format_new_value(current_value, raw_input):
         if '"' in raw_input:
             raise ValueError('value cannot contain a literal `"` character')
         return f'"{raw_input}"'
+
+    if category == "list":
+        if '\n' in raw_input or '\r' in raw_input:
+            raise ValueError('value cannot contain a newline or carriage return')
+        if any(c in raw_input for c in '"()'):
+            raise ValueError(
+                f"expected a comma-separated list with no quotes or parens — got {raw_input!r}"
+            )
+        return f"({raw_input})"
 
     # token
     if '\n' in raw_input or '\r' in raw_input:
