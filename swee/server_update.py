@@ -30,17 +30,23 @@ async def update_palworld(on_progress=None):
 
         if on_progress:
             await on_progress("Updating via steamcmd… this can take a few minutes")
-        steamcmd_proc = await asyncio.create_subprocess_exec(
-            STEAMCMD_PATH,
-            "+force_install_dir", PALWORLD_INSTALL_DIR,
-            "+login", "anonymous",
-            "+app_update", PALWORLD_STEAM_APP_ID, "validate",
-            "+quit",
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
-        )
-        stdout, _ = await steamcmd_proc.communicate()
-        steamcmd_ok = steamcmd_proc.returncode == 0
-        steamcmd_output = stdout.decode(errors="replace").strip()
+        steamcmd_ok = False
+        steamcmd_output = ""
+        try:
+            steamcmd_proc = await asyncio.create_subprocess_exec(
+                STEAMCMD_PATH,
+                "+force_install_dir", PALWORLD_INSTALL_DIR,
+                "+login", "anonymous",
+                "+app_update", PALWORLD_STEAM_APP_ID, "validate",
+                "+quit",
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+            )
+            stdout, _ = await steamcmd_proc.communicate()
+            steamcmd_ok = steamcmd_proc.returncode == 0
+            steamcmd_output = stdout.decode(errors="replace").strip()
+        except Exception as e:
+            log.exception("server update: failed to run steamcmd")
+            steamcmd_output = str(e)
 
         if on_progress:
             await on_progress("Starting server…")
