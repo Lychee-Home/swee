@@ -3,6 +3,7 @@ import logging
 import time
 
 import discord
+import httpx
 from discord.ext import tasks
 
 from swee.bot import bot
@@ -31,7 +32,11 @@ async def update_stats_message():
     assert bot.user is not None
     async with _stats_lock:
         try:
-            info, metrics = await rest.info(), await rest.metrics()
+            try:
+                info, metrics = await rest.info(), await rest.metrics()
+            except httpx.ConnectError:
+                log.warning("stats update skipped: Palworld REST API unreachable (server likely offline)")
+                return
             try:
                 players_list = (await rest.players()).get("players", [])
                 refresh_online_players(players_list)
