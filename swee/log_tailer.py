@@ -77,8 +77,7 @@ async def log_tailer():
                             if sent and pending_settings is not None:
                                 save_last_palworld_settings(pending_settings)
                     elif m := VERSION_RE.search(msg):
-                        if not restart_module._bot_restart_in_progress:
-                            await broadcast_embed("Server is online", f"Game version: `{m.group(1)}`", COLOR_READY, dt, channel_id=ALERTS_CHANNEL_ID)
+                        await broadcast_embed("Server is online", f"Game version: `{m.group(1)}`", COLOR_READY, dt, channel_id=ALERTS_CHANNEL_ID)
                         await check_palworld_settings_change()
             log.warning("log tailer: journalctl stream ended, restarting in 5s")
         except Exception:
