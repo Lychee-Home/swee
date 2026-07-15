@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - main.py
+      - swee/**
       - requirements.txt
 
 jobs:
