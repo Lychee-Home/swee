@@ -43,6 +43,10 @@ actions (save, kick, ban, broadcast, restart).
   changed setting posts an embed to `ALERTS_CHANNEL_ID` listing each change as `Old → New`;
   `AdminPassword`/`ServerPassword` changes show as `(changed)` rather than the real values. The
   first check after a fresh deploy seeds the baseline silently instead of alerting.
+- **Config view/edit** — `/config list` (paginated) and `/config get <key>` show current values
+  from `PALWORLD_SETTINGS_INI_PATH`; `/config set <key> <value>` writes a new value to that file.
+  `AdminPassword`/`ServerPassword` can't be read or set through the bot. Like any ini edit, a
+  change made via `/config set` only takes effect after the next `restart`.
 
 ## Setup
 
@@ -68,7 +72,9 @@ python main.py
 ```
 
 Slash commands are synced to `GUILD_ID` on startup. Admin-only commands (`save`, `kick`, `ban`,
-`broadcast`, `restart`) require `ADMIN_ROLE_ID`. `restart` and the RAM reader shell out to
+`broadcast`, `restart`, `config list`, `config get`, `config set`) require `ADMIN_ROLE_ID`.
+`config set` edits `PALWORLD_SETTINGS_INI_PATH` directly and does not itself restart the
+server — run `restart` afterward to apply the change. `restart` and the RAM reader shell out to
 `systemctl`/`/proc`, and `log_tailer` shells out to `journalctl`, so the bot must run on the same
 Linux host as the Palworld service — it will not run as-is on Windows.
 
