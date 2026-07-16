@@ -7,7 +7,7 @@ import swee.commands  # noqa: F401 — registers slash commands via decorator si
 import swee.config_commands  # noqa: F401 — registers slash commands via decorator side effects
 from swee.bot import bot
 from swee.cause_detection import load_last_palworld_settings
-from swee.config import BOT_TOKEN, GUILD_ID, RELAY_CHANNEL_ID
+from swee.config import BOT_TOKEN, GITHUB_REPO, GUILD_ID, RELAY_CHANNEL_ID
 from swee.log_tailer import log_tailer
 from swee.player_history import load_player_history
 from swee.releases import load_last_release, release_ticker
@@ -41,7 +41,8 @@ async def on_ready():
     global _log_tailer_task
     _log_tailer_task = asyncio.create_task(log_tailer())
     stats_ticker.start()
-    release_ticker.start()
+    if GITHUB_REPO:
+        release_ticker.start()
     log.info("Logged in as %s", bot.user)
 
 
