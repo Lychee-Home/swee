@@ -2,5 +2,4 @@
 .venv/
 __pycache__/
 .claude/settings.local.json
-player_history.json
-last_release.json
+.claude/worktrees/

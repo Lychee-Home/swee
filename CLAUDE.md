@@ -4,8 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-`swee` is a Discord bot that bridges a Palworld dedicated server with a Discord guild: it relays
-chat/join/leave activity from the server's journalctl logs, keeps a live-updating stats embed
+`swee` is a Discord bot that bridges a Palworld dedicated server with a Discord server: it relays
+join/leave activity from the server's journalctl logs, keeps a live-updating stats embed
 pinned in a channel, and exposes slash commands for status checks and admin actions (save, kick,
 ban, broadcast, restart, config view/edit) via Palworld's REST API and its `PalWorldSettings.ini`
 file. `main.py` is the entrypoint; bot logic lives in the `swee/` package (`bot.py`, `commands.py`,
