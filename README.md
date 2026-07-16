@@ -46,13 +46,14 @@ triggers while the server is still booting back up. The restart result is also p
 
 ### Release announcements
 
-Every 5 minutes the bot polls the GitHub Releases API (`GITHUB_REPO`) for the latest release; when
-a new one appears, it humanizes the auto-generated release notes (Conventional Commit prefixes and
-PR references stripped, grouped into "New"/"Fixes") and posts an embed to
+If `GITHUB_REPO` is set, every 5 minutes the bot polls the GitHub Releases API for the latest
+release; when a new one appears, it humanizes the auto-generated release notes (Conventional
+Commit prefixes and PR references stripped, grouped into "New"/"Fixes") and posts an embed to
 `BOT_UPDATES_CHANNEL_ID`. The last announced tag is cached in `last_release.json`; deleting that
 file makes the bot re-seed from the current latest release on next startup without re-announcing
 it. If `GITHUB_REPO` is private, set `GITHUB_TOKEN` to a token with read access — unauthenticated
-requests to the GitHub API 404 on private repos instead of returning release data.
+requests to the GitHub API 404 on private repos instead of returning release data. Leave
+`GITHUB_REPO` unset/blank to disable release polling entirely.
 
 ### Settings-change alerts
 
@@ -91,8 +92,8 @@ cp .env.example .env
 Fill in `.env` with your bot token, server/channel/role IDs, and Palworld REST credentials, then
 restrict its permissions (`chmod 600 .env` on Linux — it holds secrets).
 `RAM_RESTART_THRESHOLD_PCT` and its companions are optional — leave them unset to keep
-auto-restart disabled. `GITHUB_TOKEN` is likewise optional — only required if `GITHUB_REPO` is
-private.
+auto-restart disabled. `GITHUB_REPO` is likewise optional — leave it unset to disable release
+polling. `GITHUB_TOKEN` is only required if `GITHUB_REPO` is set and private.
 
 You can edit and install dependencies on any OS, but the bot itself must **run** on Linux (see
 [Running](#running)).
