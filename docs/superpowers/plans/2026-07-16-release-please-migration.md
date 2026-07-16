@@ -295,19 +295,27 @@ run against the actual repo after the PR from this plan is merged.
 **Interfaces:**
 - Consumes: the merged state of Tasks 1–4.
 
-- [ ] **Step 1: Confirm the workflow file is valid from GitHub's own perspective**
+- [x] **Step 1: Confirm the workflow file is valid from GitHub's own perspective**
 
 After pushing the branch, open the PR in GitHub and check the "Actions" tab / PR checks — GitHub
 parses `ci.yml` on push regardless of whether the `release-please` job's trigger conditions are
 met, so a YAML/schema error surfaces immediately as a failed or skipped run rather than silently.
 
-- [ ] **Step 2: Confirm a feature-shaped push does not deploy**
+Verified: PR #27 merged 2026-07-16, workflow run 29535964430 completed successfully — no
+YAML/schema errors.
+
+- [x] **Step 2: Confirm a feature-shaped push does not deploy**
 
 Once this PR merges to `main` (a `chore`-shaped commit, per Conventional Commits — the PR title
 must start with `chore:` or `docs:` since this is infra/docs work, not a feature or fix), check
 the Actions run for that push: `release-please` should run and either open or update a Release
 PR, `release_created` should be `false`, and the `deploy` job should show as **skipped** (not
 run) in the workflow run summary.
+
+Verified: run 29535964430 — `release-please` job succeeded and logged "No user facing commits
+found since 6fd4aff... - skipping" (the two commits since `v2.4.0` were `docs:`/`chore:`, neither
+releasable), so no Release PR was opened; `deploy` job shows `conclusion: skipped`, confirming
+the gate held.
 
 - [ ] **Step 3: Confirm the Release PR reflects the seeded version**
 
@@ -316,6 +324,10 @@ Open the Release PR release-please created/updated on `main`. Its title/diff sho
 change landed) — not `0.1.0` or `1.0.0`. If it proposes starting from zero, the manifest seed in
 Task 1 didn't take effect; re-check `.release-please-manifest.json` is at repo root and its key
 is exactly `"."`.
+
+Not yet verifiable: no releasable (`feat`/`fix`/`perf`/breaking) commit has merged to `main` since
+this migration landed, so release-please has no Release PR to open yet — confirmed by design, not
+a defect (see Step 2's log excerpt above). Revisit once one merges.
 
 - [ ] **Step 4: Confirm merging the Release PR deploys**
 
