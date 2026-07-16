@@ -136,8 +136,9 @@ sudo systemctl start swee
 
 Manage the running bot with `systemctl {status,stop,restart} swee` and `journalctl -u swee -f`.
 
-Pushes to `main` auto-deploy to this running instance, and releases are tagged automatically from
-PR titles — see [`docs/deployment.md`](docs/deployment.md) for the full CI/CD and versioning
+Pushes to `main` update a standing release-please Release PR; merging *that* PR is what deploys
+this running instance and tags a release — see [`docs/deployment.md`](docs/deployment.md) for the
+full CI/CD and versioning
 mechanics.
 
 ## Requirements
