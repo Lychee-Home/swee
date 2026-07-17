@@ -32,6 +32,10 @@ pending_connects = {}  # display name -> asyncio.Task
 
 async def _fallback_join(name, dt):
     await asyncio.sleep(FALLBACK_JOIN_DELAY_SEC)
+    # Self-pop after the await is safe here (unlike a plain dict mutation elsewhere in
+    # the codebase, which must never cross an await) because nothing else can run
+    # between the sleep resolving and this pop in asyncio's single-threaded loop; a
+    # caller-side cancel-and-pop racing this is a no-op since pop() defaults to None.
     pending_connects.pop(name, None)
     try:
         await broadcast_embed(f"{name} joined the server", None, COLOR_JOIN, dt)
