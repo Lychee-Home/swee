@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.7.0](https://github.com/Lychee-Home/swee/compare/v2.6.0...v2.7.0) (2026-07-17)
+
+
+### Features
+
+* in-game [@swee](https://github.com/swee) Palworld Q&A assistant ([#39](https://github.com/Lychee-Home/swee/issues/39)) ([7ee21b4](https://github.com/Lychee-Home/swee/commit/7ee21b45bdc146762c809d8f825457d8d09549ad))
+* persist session_started across bot restarts ([#43](https://github.com/Lychee-Home/swee/issues/43)) ([4680287](https://github.com/Lychee-Home/swee/commit/4680287567a9d2954dd93ecbcb7083aba9dbdf90))
+
+
+### Bug Fixes
+
+* key pending-connect fallback by Steam user id, not display name ([#41](https://github.com/Lychee-Home/swee/issues/41)) ([6577967](https://github.com/Lychee-Home/swee/commit/65779675408e2cefb0576bf967a42443006226e9))
+* use GitHub's published_at for release embed timestamp ([#42](https://github.com/Lychee-Home/swee/issues/42)) ([c2aa315](https://github.com/Lychee-Home/swee/commit/c2aa315ac463a76bdef3b5e2c04d9bb74143f1be))
+
 ## [2.6.0](https://github.com/Lychee-Home/swee/compare/v2.5.0...v2.6.0) (2026-07-17)
 
 
