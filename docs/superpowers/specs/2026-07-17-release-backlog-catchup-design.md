@@ -16,6 +16,11 @@ ticker finds it's behind by more than one release, it announces all of them, old
 - Swap `fetch_latest_release()` for a list-based fetch (`GET /repos/{repo}/releases`,
   `per_page=100`, newest-first — the default GitHub ordering) so the ticker can see every release
   since the last announced one, not just the newest.
+- Unlike `/releases/latest`, the `/releases` list endpoint returns drafts and prereleases too
+  (drafts when authenticated with push access, prereleases always). `fetch_releases()` explicitly
+  filters both out of the returned list, so this endpoint swap is a pure superset-to-catch-up
+  change — the *kinds* of releases the bot can announce stay exactly as before. Decided
+  deliberately after final review, not an oversight.
 - `release_ticker` walks that list from the top, collecting releases until it reaches
   `last_release_tag` (or exhausts the list, e.g. on a corrupt/missing state file where seeding
   kicks in instead — see First-run behavior). It reverses the collected slice to chronological

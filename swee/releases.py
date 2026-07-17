@@ -89,7 +89,10 @@ async def fetch_releases():
     async with httpx.AsyncClient(timeout=10.0) as client:
         r = await client.get(url, headers=headers, params={"per_page": 100})
         r.raise_for_status()
-        return r.json()
+        # /releases (unlike /releases/latest) returns drafts and prereleases too — filter them
+        # out here so every caller sees only published, non-prerelease releases, matching what
+        # /releases/latest always guaranteed before this endpoint swap.
+        return [rel for rel in r.json() if not rel.get("draft") and not rel.get("prerelease")]
 
 
 def humanize_release_notes(body):
