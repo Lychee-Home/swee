@@ -15,8 +15,8 @@ def read_ram_stats():
 
 
 def get_ram_usage():
-    used_gb, total_gb, pct = read_ram_stats()
-    return f"{used_gb:.1f}/{total_gb:.1f} GB ({pct}%)"
+    _, _, pct = read_ram_stats()
+    return f"{pct}%"
 
 
 def should_auto_restart(pct, threshold_pct, last_restart_monotonic, now_monotonic, cooldown_min):
