@@ -73,6 +73,18 @@ baseline silently instead of alerting.
 `AdminPassword`/`ServerPassword` can't be read or set through the bot. Like any ini edit, a change
 made via `/config set` only takes effect after the next `restart`.
 
+### In-game `@swee` assistant (optional)
+
+Players can ask Palworld questions in-game chat by prefixing a message with `@swee`, e.g.
+`@swee what does lamball drop?`. The question goes to Claude, which can call a live lookup
+against [palworld.wiki.gg](https://palworld.wiki.gg)'s structured pal database (breeding, drops,
+work suitability, stats, passive skills) for anything pal-specific, falling back to its own
+general Palworld knowledge for broader questions. The answer is broadcast in-game to all players
+via the same REST announce endpoint used for the Discord relay, and the question/answer pair is
+logged to `ASSISTANT_LOG_CHANNEL_ID` for admin visibility. Each player is limited to one answered
+question per `ASK_COOLDOWN_SEC` (default 30s) to limit broadcast spam and API cost. Requires
+`ANTHROPIC_API_KEY` — leave it unset to disable the feature entirely.
+
 ### Server update
 
 `/update` saves the world, stops the Palworld service, runs `steamcmd` against

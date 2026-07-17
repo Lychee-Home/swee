@@ -4,6 +4,7 @@ import logging
 import re
 from datetime import datetime, timezone
 
+import swee.assistant as assistant
 import swee.restart as restart_module
 from swee.cause_detection import check_palworld_settings_change, detect_unplanned_restart_cause, save_last_palworld_settings
 from swee.config import ALERTS_CHANNEL_ID, COLOR_JOIN, COLOR_LEAVE, COLOR_READY, COLOR_SHUTDOWN, PACIFIC, PALWORLD_SERVICE_NAME
@@ -19,6 +20,7 @@ CONNECT_RE  = re.compile(r'\[LOG\]\s*(.+?) [\d.]+ connected the server')
 TS_RE       = re.compile(r'^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]\s*(.*)')
 SHUTDOWN_RE = re.compile(r'Shutdown handler: initialize\.')
 VERSION_RE  = re.compile(r'Game version is (v[\d.]+)')
+CHAT_RE     = re.compile(r'\[CHAT\]\s*<(.+?)>\s*(.*)')
 
 FALLBACK_JOIN_DELAY_SEC = 30
 
@@ -28,6 +30,7 @@ FALLBACK_JOIN_DELAY_SEC = 30
 # "connected", that fires a fallback join notification unless a real
 # "joined" or "left" line cancels it first.
 pending_connects = {}  # display name -> asyncio.Task
+_assistant_tasks = set()
 
 
 async def _fallback_join(name, dt):
@@ -95,6 +98,13 @@ async def log_tailer():
                         await broadcast_embed(f"{name} left the server", None, COLOR_LEAVE, dt)
                         await record_leave(name, dt)
                         await update_stats_message()
+                    elif m := CHAT_RE.search(rest_msg):
+                        name, text = m.groups()
+                        question = assistant.parse_mention(text)
+                        if question:
+                            task = asyncio.create_task(assistant.handle_mention(name, question))
+                            _assistant_tasks.add(task)
+                            task.add_done_callback(_assistant_tasks.discard)
                 else:
                     if SHUTDOWN_RE.search(msg):
                         if restart_module._bot_restart_in_progress:

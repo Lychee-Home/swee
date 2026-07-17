@@ -6,3 +6,4 @@ urllib3==2.7.0
 httpx
 python-dotenv
 discord.py>=2.7.1
+anthropic
