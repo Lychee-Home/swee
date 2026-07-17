@@ -52,6 +52,12 @@ def pop_session(player_id, sessions):
     sessions.pop(player_id, None)
 
 
+def append_exchange(player_id, sessions, question, answer, limit):
+    history = sessions.get(player_id, [])
+    history = history + [{"role": "user", "content": question}, {"role": "assistant", "content": answer}]
+    sessions[player_id] = history[-(limit * 2):]
+
+
 def fuzzy_match_pal_name(query, known_names):
     if not known_names:
         return None
@@ -129,8 +135,8 @@ LOOKUP_PAL_TOOL = {
 _anthropic = AsyncAnthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
 
 
-async def ask_claude(question):
-    messages = [{"role": "user", "content": question}]
+async def ask_claude(question, history=None):
+    messages = list(history or []) + [{"role": "user", "content": question}]
     for _ in range(3):
         response = await _anthropic.messages.create(
             model="claude-haiku-4-5-20251001",
@@ -156,6 +162,8 @@ async def ask_claude(question):
 _last_answered = {}
 
 _sessions = {}
+
+SESSION_HISTORY_LIMIT = 8
 
 
 def clear_session(player_id):
