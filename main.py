@@ -9,7 +9,7 @@ from swee.bot import bot
 from swee.cause_detection import load_last_palworld_settings
 from swee.config import BOT_TOKEN, GITHUB_REPO, GUILD_ID, RELAY_CHANNEL_ID
 from swee.log_tailer import log_tailer
-from swee.player_history import load_player_history
+from swee.player_history import load_player_history, load_session_state
 from swee.releases import load_last_release, release_ticker
 from swee.rest_client import rest
 from swee.restart import check_palworld_service
@@ -51,6 +51,7 @@ async def main():
     if not check_palworld_service():
         raise SystemExit(1)
     load_player_history()
+    load_session_state()
     load_last_release()
     load_last_palworld_settings()
     async with bot:
