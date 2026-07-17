@@ -69,6 +69,7 @@ def add_status_fields(embed, info, metrics, players, offline_entries):
     embed.add_field(name="Offline", value=format_offline_field(offline_entries, OFFLINE_PLAYERS_LIMIT), inline=False)
     embed.add_field(name="FPS", value=metrics["serverfps"])
     embed.add_field(name="Uptime", value=f"{metrics['uptime'] // 3600}h")
+    embed.add_field(name="Day", value=metrics["days"])
     embed.add_field(name="Version", value=info["version"])
     return embed
 
