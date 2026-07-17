@@ -25,6 +25,7 @@ from datetime import datetime, timezone  # noqa: E402
 from swee.releases import (  # noqa: E402
     humanize_release_notes,
     parse_release_header,
+    parse_release_timestamp,
     select_missed_releases,
 )
 
@@ -129,6 +130,18 @@ class ParseReleaseHeaderTests(unittest.TestCase):
 
     def test_returns_none_none_when_header_absent(self):
         self.assertEqual(parse_release_header("no header here\n"), (None, None))
+
+
+class ParseReleaseTimestampTests(unittest.TestCase):
+    def test_parses_github_published_at(self):
+        self.assertEqual(
+            parse_release_timestamp("2026-07-17T10:00:00Z"),
+            datetime(2026, 7, 17, 10, 0, 0, tzinfo=timezone.utc),
+        )
+
+    def test_returns_none_when_missing(self):
+        self.assertIsNone(parse_release_timestamp(None))
+        self.assertIsNone(parse_release_timestamp(""))
 
 
 if __name__ == "__main__":
