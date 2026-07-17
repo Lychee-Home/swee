@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.6.0](https://github.com/Lychee-Home/swee/compare/v2.5.0...v2.6.0) (2026-07-17)
+
+
+### Features
+
+* announce every missed GitHub release, not just the newest ([#37](https://github.com/Lychee-Home/swee/issues/37)) ([a337069](https://github.com/Lychee-Home/swee/commit/a337069b7515814e821f01f025832386a4a40c82))
+* show system RAM as percentage only ([#38](https://github.com/Lychee-Home/swee/issues/38)) ([4b74572](https://github.com/Lychee-Home/swee/commit/4b745726e117e43ed4355f075c4a1697b1c50b46))
+
+
+### Bug Fixes
+
+* strip PR/commit links from release announcements ([#35](https://github.com/Lychee-Home/swee/issues/35)) ([15c7ce8](https://github.com/Lychee-Home/swee/commit/15c7ce8ec79fa75f2b597f2f505b37ab650094d7))
+
 ## [2.5.0](https://github.com/Lychee-Home/swee/compare/v2.4.0...v2.5.0) (2026-07-17)
 
 
