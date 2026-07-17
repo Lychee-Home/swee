@@ -1,11 +1,14 @@
 import difflib
 import logging
 import re
+import time
 
 import httpx
 from anthropic import AsyncAnthropic
 
-from swee.config import ANTHROPIC_API_KEY
+from swee.config import ANTHROPIC_API_KEY, ASK_COOLDOWN_SEC, ASSISTANT_LOG_CHANNEL_ID, COLOR_CHAT
+from swee.embeds import broadcast_embed
+from swee.rest_client import rest
 
 log = logging.getLogger("swee")
 
@@ -135,3 +138,29 @@ async def ask_claude(question):
             tool_results.append({"type": "tool_result", "tool_use_id": block.id, "content": str(result)})
         messages.append({"role": "user", "content": tool_results})
     return "Sorry, I couldn't figure that one out."
+
+
+_last_answered = {}
+
+
+async def handle_mention(player_name, question):
+    now = time.monotonic()
+    if is_on_cooldown(player_name, _last_answered, ASK_COOLDOWN_SEC, now):
+        return
+    record_answered(player_name, _last_answered, now)
+    try:
+        answer = await ask_claude(question)
+    except Exception:
+        log.exception("assistant: failed to answer question from %s", player_name)
+        answer = "Sorry, I couldn't look that up right now."
+    try:
+        await rest.announce(f"swee: {answer}")
+    except Exception:
+        log.exception("assistant: announce failed")
+    if ASSISTANT_LOG_CHANNEL_ID:
+        await broadcast_embed(
+            f"{player_name} asked swee",
+            f"**Q:** {question}\n**A:** {answer}",
+            COLOR_CHAT,
+            channel_id=ASSISTANT_LOG_CHANNEL_ID,
+        )
