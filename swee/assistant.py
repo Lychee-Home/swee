@@ -9,6 +9,7 @@ from anthropic import AsyncAnthropic
 
 from swee.config import ANTHROPIC_API_KEY, ASK_COOLDOWN_SEC, ASSISTANT_LOG_CHANNEL_ID, COLOR_CHAT
 from swee.embeds import broadcast_embed
+from swee.player_history import online_players
 from swee.rest_client import rest
 
 log = logging.getLogger("swee")
@@ -173,12 +174,15 @@ def clear_session(player_id):
 async def handle_mention(player_name, question):
     if _anthropic is None:
         return
+    player_id = resolve_player_id(player_name, online_players)
     now = time.monotonic()
-    if is_on_cooldown(player_name, _last_answered, ASK_COOLDOWN_SEC, now):
+    if is_on_cooldown(player_id, _last_answered, ASK_COOLDOWN_SEC, now):
         return
-    record_answered(player_name, _last_answered, now)
+    record_answered(player_id, _last_answered, now)
+    history = _sessions.get(player_id, [])
     try:
-        answer = await ask_claude(question)
+        answer = await ask_claude(question, history)
+        append_exchange(player_id, _sessions, question, answer, SESSION_HISTORY_LIMIT)
     except Exception:
         log.exception("assistant: failed to answer question from %s", player_name)
         answer = "Sorry, I couldn't look that up right now."
