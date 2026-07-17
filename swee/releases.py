@@ -42,6 +42,18 @@ def parse_release_header(body):
     return None, None
 
 
+def select_missed_releases(releases, last_tag):
+    # releases is newest-first (GitHub API order). Stop as soon as last_tag is found; if it's
+    # never found (backlog bigger than one page), every entry here counts as missed.
+    missed = []
+    for release in releases:
+        if release.get("tag_name") == last_tag:
+            break
+        missed.append(release)
+    missed.reverse()
+    return missed
+
+
 # Matches env var names like GITHUB_REPO or PALWORLD_SETTINGS_INI_PATH: internal bot config that
 # means nothing to players, so bullets mentioning one are dropped from the announcement.
 ENV_VAR_MENTION_RE = re.compile(r'\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b')
@@ -69,15 +81,18 @@ def save_last_release(tag):
         json.dump({"tag": tag}, f, indent=2)
 
 
-async def fetch_latest_release():
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+async def fetch_releases():
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/releases"
     headers = {"Accept": "application/vnd.github+json"}
     if GITHUB_TOKEN:
         headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
     async with httpx.AsyncClient(timeout=10.0) as client:
-        r = await client.get(url, headers=headers)
+        r = await client.get(url, headers=headers, params={"per_page": 100})
         r.raise_for_status()
-        return r.json()
+        # /releases (unlike /releases/latest) returns drafts and prereleases too — filter them
+        # out here so every caller sees only published, non-prerelease releases, matching what
+        # /releases/latest always guaranteed before this endpoint swap.
+        return [rel for rel in r.json() if not rel.get("draft") and not rel.get("prerelease")]
 
 
 def humanize_release_notes(body):
@@ -119,41 +134,49 @@ def humanize_release_notes(body):
 async def release_ticker():
     global last_release_tag
     try:
-        release = await fetch_latest_release()
+        releases = await fetch_releases()
     except Exception:
         log.exception("release check failed")
         return
 
-    tag = release.get("tag_name")
-    if not tag:
+    if not releases:
+        return
+
+    newest_tag = releases[0].get("tag_name")
+    if not newest_tag:
         return
 
     if last_release_tag is None:
         # First run with no cached state — seed it without announcing, so
-        # shipping this feature doesn't dump a changelog for a release that
-        # already happened before the bot could track it.
-        save_last_release(tag)
+        # shipping this feature doesn't dump a changelog for releases that
+        # already happened before the bot could track them.
+        save_last_release(newest_tag)
         return
 
-    if tag == last_release_tag:
+    if newest_tag == last_release_tag:
         return
 
-    body = release.get("body") or ""
-    _, release_date = parse_release_header(body)
-    notes = humanize_release_notes(body)
-    if notes is None:
-        notes = body or "No release notes."
-        max_len = 4000
-        if len(notes) > max_len:
-            notes = notes[:max_len] + "…"
-    sent = await broadcast_embed(
-        "New Release",
-        notes,
-        COLOR_READY,
-        dt=release_date,
-        channel_id=BOT_UPDATES_CHANNEL_ID,
-    )
-    if sent:
-        save_last_release(tag)
-    else:
-        log.warning("release announcement failed for %s, will retry next tick", tag)
+    for release in select_missed_releases(releases, last_release_tag):
+        tag = release.get("tag_name")
+        if not tag:
+            continue
+        body = release.get("body") or ""
+        _, release_date = parse_release_header(body)
+        notes = humanize_release_notes(body)
+        if notes is None:
+            notes = body or "No release notes."
+            max_len = 4000
+            if len(notes) > max_len:
+                notes = notes[:max_len] + "…"
+        sent = await broadcast_embed(
+            "New Release",
+            notes,
+            COLOR_READY,
+            dt=release_date,
+            channel_id=BOT_UPDATES_CHANNEL_ID,
+        )
+        if sent:
+            save_last_release(tag)
+        else:
+            log.warning("release announcement failed for %s, will retry next tick", tag)
+            break

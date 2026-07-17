@@ -46,14 +46,16 @@ triggers while the server is still booting back up. The restart result is also p
 
 ### Release announcements
 
-If `GITHUB_REPO` is set, every 5 minutes the bot polls the GitHub Releases API for the latest
-release; when a new one appears, it humanizes the auto-generated release notes (Conventional
-Commit prefixes and PR references stripped, grouped into "New"/"Fixes") and posts an embed to
-`BOT_UPDATES_CHANNEL_ID`. The last announced tag is cached in `last_release.json`; deleting that
-file makes the bot re-seed from the current latest release on next startup without re-announcing
-it. If `GITHUB_REPO` is private, set `GITHUB_TOKEN` to a token with read access — unauthenticated
-requests to the GitHub API 404 on private repos instead of returning release data. Leave
-`GITHUB_REPO` unset/blank to disable release polling entirely.
+If `GITHUB_REPO` is set, every 5 minutes the bot polls the GitHub Releases API; when new releases
+appear, it humanizes each one's auto-generated release notes (Conventional Commit prefixes and PR
+references stripped, grouped into "New"/"Fixes") and posts an embed to `BOT_UPDATES_CHANNEL_ID`.
+If more than one release shipped since the last check (e.g. the bot was offline), it announces all
+of them in order, oldest first, rather than skipping straight to the newest. The last announced
+tag is cached in `last_release.json`; deleting that file makes the bot re-seed from the current
+latest release on next startup without re-announcing it. If `GITHUB_REPO` is private, set
+`GITHUB_TOKEN` to a token with read access — unauthenticated requests to the GitHub API 404 on
+private repos instead of returning release data. Leave `GITHUB_REPO` unset/blank to disable
+release polling entirely.
 
 ### Settings-change alerts
 
