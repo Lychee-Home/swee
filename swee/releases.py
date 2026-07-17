@@ -42,6 +42,18 @@ def parse_release_header(body):
     return None, None
 
 
+def select_missed_releases(releases, last_tag):
+    # releases is newest-first (GitHub API order). Stop as soon as last_tag is found; if it's
+    # never found (backlog bigger than one page), every entry here counts as missed.
+    missed = []
+    for release in releases:
+        if release.get("tag_name") == last_tag:
+            break
+        missed.append(release)
+    missed.reverse()
+    return missed
+
+
 # Matches env var names like GITHUB_REPO or PALWORLD_SETTINGS_INI_PATH: internal bot config that
 # means nothing to players, so bullets mentioning one are dropped from the announcement.
 ENV_VAR_MENTION_RE = re.compile(r'\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b')

@@ -22,7 +22,11 @@ os.environ.setdefault("PALWORLD_INSTALL_DIR", "/tmp")
 
 from datetime import datetime, timezone  # noqa: E402
 
-from swee.releases import humanize_release_notes, parse_release_header  # noqa: E402
+from swee.releases import (  # noqa: E402
+    humanize_release_notes,
+    parse_release_header,
+    select_missed_releases,
+)
 
 RELEASE_PLEASE_BODY = (
     "## [2.5.0](https://github.com/Lychee-Home/swee/compare/v2.4.0...v2.5.0) (2026-07-17)\n"
@@ -84,6 +88,32 @@ class HumanizeReleaseNotesTests(unittest.TestCase):
 
     def test_returns_none_for_body_with_no_bullets(self):
         self.assertIsNone(humanize_release_notes("## [2.5.0](url) (2026-07-17)\n\nNothing here.\n"))
+
+
+class SelectMissedReleasesTests(unittest.TestCase):
+    def test_returns_releases_after_last_tag_oldest_first(self):
+        releases = [
+            {"tag_name": "v2.5.2", "body": "c"},
+            {"tag_name": "v2.5.1", "body": "b"},
+            {"tag_name": "v2.5.0", "body": "a"},
+        ]
+        missed = select_missed_releases(releases, "v2.5.0")
+        self.assertEqual([r["tag_name"] for r in missed], ["v2.5.1", "v2.5.2"])
+
+    def test_returns_empty_list_when_last_tag_is_newest(self):
+        releases = [{"tag_name": "v2.5.0", "body": "a"}]
+        self.assertEqual(select_missed_releases(releases, "v2.5.0"), [])
+
+    def test_treats_all_releases_as_missed_when_last_tag_not_found(self):
+        releases = [
+            {"tag_name": "v2.5.2", "body": "c"},
+            {"tag_name": "v2.5.1", "body": "b"},
+        ]
+        missed = select_missed_releases(releases, "v2.4.0")
+        self.assertEqual([r["tag_name"] for r in missed], ["v2.5.1", "v2.5.2"])
+
+    def test_returns_empty_list_for_empty_releases(self):
+        self.assertEqual(select_missed_releases([], "v2.5.0"), [])
 
 
 class ParseReleaseHeaderTests(unittest.TestCase):
