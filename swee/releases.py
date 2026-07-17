@@ -42,6 +42,16 @@ def parse_release_header(body):
     return None, None
 
 
+def parse_release_timestamp(published_at):
+    # GitHub's release `published_at` is an ISO 8601 UTC timestamp, e.g.
+    # "2026-07-17T10:00:00Z" — the actual time the release was published, unlike the date in the
+    # release-please changelog header (which is when the release-please PR was generated/merged
+    # and can lag behind, especially for backlog announcements sent well after the fact).
+    if not published_at:
+        return None
+    return datetime.strptime(published_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+
+
 def select_missed_releases(releases, last_tag):
     # releases is newest-first (GitHub API order). Stop as soon as last_tag is found; if it's
     # never found (backlog bigger than one page), every entry here counts as missed.
@@ -161,7 +171,7 @@ async def release_ticker():
         if not tag:
             continue
         body = release.get("body") or ""
-        _, release_date = parse_release_header(body)
+        release_date = parse_release_timestamp(release.get("published_at"))
         notes = humanize_release_notes(body)
         if notes is None:
             notes = body or "No release notes."
