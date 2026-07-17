@@ -85,6 +85,11 @@ logged to `ASSISTANT_LOG_CHANNEL_ID` for admin visibility. Each player is limite
 question per `ASK_COOLDOWN_SEC` (default 30s) to limit broadcast spam and API cost. Requires
 `ANTHROPIC_API_KEY` — leave it unset to disable the feature entirely.
 
+Each player's questions and answers are remembered as a conversation within their current play
+session (up to the last 8 exchanges), so follow-up questions like "what about its passive skills?"
+can reference what was already asked — this memory is cleared when the player leaves the server, and
+is never shared between players even if they share a display name.
+
 Known limitation: map/resource-location questions (e.g. "where can I find Pure Quartz") aren't
 grounded in live data — there's no pal to look up, so these fall back to Claude's general knowledge
 and can be vague or wrong. Only pal-specific questions (breeding, drops, work suitability, stats,
