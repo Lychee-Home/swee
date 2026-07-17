@@ -1,7 +1,7 @@
 import time
 import unittest
 
-from swee.assistant import is_on_cooldown, parse_mention, record_answered
+from swee.assistant import is_on_cooldown, parse_mention, record_answered, fuzzy_match_pal_name
 
 
 class ParseMentionTests(unittest.TestCase):
@@ -38,3 +38,19 @@ class CooldownTests(unittest.TestCase):
         last_answered = {}
         record_answered("Kippei", last_answered, 42.0)
         self.assertEqual(last_answered["Kippei"], 42.0)
+
+
+class FuzzyMatchPalNameTests(unittest.TestCase):
+    KNOWN = ["Lamball", "Cattiva", "Direhowl", "Anubis"]
+
+    def test_exact_match_case_insensitive(self):
+        self.assertEqual(fuzzy_match_pal_name("lamball", self.KNOWN), "Lamball")
+
+    def test_close_typo_match(self):
+        self.assertEqual(fuzzy_match_pal_name("lambal", self.KNOWN), "Lamball")
+
+    def test_no_match_returns_none(self):
+        self.assertIsNone(fuzzy_match_pal_name("xyzzyzzy", self.KNOWN))
+
+    def test_empty_known_names_returns_none(self):
+        self.assertIsNone(fuzzy_match_pal_name("lamball", []))
