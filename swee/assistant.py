@@ -5,10 +5,7 @@ import re
 import httpx
 from anthropic import AsyncAnthropic
 
-try:
-    from swee.config import ANTHROPIC_API_KEY
-except KeyError:
-    ANTHROPIC_API_KEY = None
+from swee.config import ANTHROPIC_API_KEY
 
 log = logging.getLogger("swee")
 

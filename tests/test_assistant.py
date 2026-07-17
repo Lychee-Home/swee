@@ -1,5 +1,23 @@
+import os
 import time
 import unittest
+
+os.environ.setdefault("DISCORD_BOT_TOKEN", "x")
+os.environ.setdefault("GUILD_ID", "1")
+os.environ.setdefault("ADMIN_ROLE_ID", "1")
+os.environ.setdefault("RELAY_CHANNEL_ID", "1")
+os.environ.setdefault("STATS_CHANNEL_ID", "1")
+os.environ.setdefault("ACTIVITY_CHANNEL_ID", "1")
+os.environ.setdefault("ALERTS_CHANNEL_ID", "1")
+os.environ.setdefault("ADMIN_CHANNEL_ID", "1")
+os.environ.setdefault("COMMANDS_CHANNEL_ID", "1")
+os.environ.setdefault("BOT_UPDATES_CHANNEL_ID", "1")
+os.environ.setdefault("REST_HOST", "x")
+os.environ.setdefault("REST_PORT", "1")
+os.environ.setdefault("REST_USER", "x")
+os.environ.setdefault("REST_PASSWORD", "x")
+os.environ.setdefault("PALWORLD_SETTINGS_INI_PATH", "/tmp/x")
+os.environ.setdefault("PALWORLD_INSTALL_DIR", "/tmp")
 
 from swee.assistant import is_on_cooldown, parse_mention, record_answered, fuzzy_match_pal_name
 
