@@ -81,13 +81,13 @@ def save_last_release(tag):
         json.dump({"tag": tag}, f, indent=2)
 
 
-async def fetch_latest_release():
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+async def fetch_releases():
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/releases"
     headers = {"Accept": "application/vnd.github+json"}
     if GITHUB_TOKEN:
         headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
     async with httpx.AsyncClient(timeout=10.0) as client:
-        r = await client.get(url, headers=headers)
+        r = await client.get(url, headers=headers, params={"per_page": 100})
         r.raise_for_status()
         return r.json()
 
