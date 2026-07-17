@@ -109,6 +109,7 @@ async def log_tailer():
                         key = uid_m.group(1) if uid_m else name
                         if pending := pending_connects.pop(key, None):
                             pending.cancel()
+                        # must resolve before record_leave() pops `name` out of online_players below
                         assistant.clear_session(assistant.resolve_player_id(name, online_players))
                         await broadcast_embed(f"{name} left the server", None, COLOR_LEAVE, dt)
                         await record_leave(name, dt)
