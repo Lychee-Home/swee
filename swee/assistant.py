@@ -161,7 +161,7 @@ async def handle_mention(player_name, question):
         log.exception("assistant: failed to answer question from %s", player_name)
         answer = "Sorry, I couldn't look that up right now."
     try:
-        await rest.announce(f"swee: {answer}")
+        await rest.announce(f"[swee] {answer}")
     except Exception:
         log.exception("assistant: announce failed")
     if ASSISTANT_LOG_CHANNEL_ID:
