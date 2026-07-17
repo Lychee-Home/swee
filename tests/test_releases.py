@@ -61,11 +61,18 @@ class HumanizeReleaseNotesTests(unittest.TestCase):
             "\n"
             "**New**\n"
             "• Broadcast in-game warning and delay before /restart and /update\n"
-            "• Make GITHUB_REPO optional\n"
             "\n"
             "**Fixes**\n"
             "• Add fallback join notification for missed 'joined the server' log lines",
         )
+
+    def test_bullet_mentioning_env_var_is_dropped(self):
+        notes = humanize_release_notes(RELEASE_PLEASE_BODY)
+        self.assertNotIn("GITHUB_REPO", notes)
+
+    def test_section_with_only_env_var_bullets_is_omitted_entirely(self):
+        body = "### Features\n\n* make GITHUB_REPO optional\n"
+        self.assertIsNone(humanize_release_notes(body))
 
     def test_bullet_without_link_suffix_is_still_parsed(self):
         body = "### Features\n\n* some manually written bullet\n"

@@ -41,6 +41,11 @@ def parse_release_header(body):
         return version, date
     return None, None
 
+
+# Matches env var names like GITHUB_REPO or PALWORLD_SETTINGS_INI_PATH: internal bot config that
+# means nothing to players, so bullets mentioning one are dropped from the announcement.
+ENV_VAR_MENTION_RE = re.compile(r'\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b')
+
 LAST_RELEASE_PATH = "last_release.json"
 last_release_tag = None  # cached in-memory; mirrors last_release.json on disk
 
@@ -91,6 +96,8 @@ def humanize_release_notes(body):
         if not bullet_match:
             continue
         desc = bullet_match.group("desc").strip()
+        if ENV_VAR_MENTION_RE.search(desc):
+            continue
         if desc:
             desc = desc[0].upper() + desc[1:]
         grouped.setdefault(label, []).append(desc)
