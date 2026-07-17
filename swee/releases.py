@@ -131,41 +131,49 @@ def humanize_release_notes(body):
 async def release_ticker():
     global last_release_tag
     try:
-        release = await fetch_latest_release()
+        releases = await fetch_releases()
     except Exception:
         log.exception("release check failed")
         return
 
-    tag = release.get("tag_name")
-    if not tag:
+    if not releases:
+        return
+
+    newest_tag = releases[0].get("tag_name")
+    if not newest_tag:
         return
 
     if last_release_tag is None:
         # First run with no cached state — seed it without announcing, so
-        # shipping this feature doesn't dump a changelog for a release that
-        # already happened before the bot could track it.
-        save_last_release(tag)
+        # shipping this feature doesn't dump a changelog for releases that
+        # already happened before the bot could track them.
+        save_last_release(newest_tag)
         return
 
-    if tag == last_release_tag:
+    if newest_tag == last_release_tag:
         return
 
-    body = release.get("body") or ""
-    _, release_date = parse_release_header(body)
-    notes = humanize_release_notes(body)
-    if notes is None:
-        notes = body or "No release notes."
-        max_len = 4000
-        if len(notes) > max_len:
-            notes = notes[:max_len] + "…"
-    sent = await broadcast_embed(
-        "New Release",
-        notes,
-        COLOR_READY,
-        dt=release_date,
-        channel_id=BOT_UPDATES_CHANNEL_ID,
-    )
-    if sent:
-        save_last_release(tag)
-    else:
-        log.warning("release announcement failed for %s, will retry next tick", tag)
+    for release in select_missed_releases(releases, last_release_tag):
+        tag = release.get("tag_name")
+        if not tag:
+            continue
+        body = release.get("body") or ""
+        _, release_date = parse_release_header(body)
+        notes = humanize_release_notes(body)
+        if notes is None:
+            notes = body or "No release notes."
+            max_len = 4000
+            if len(notes) > max_len:
+                notes = notes[:max_len] + "…"
+        sent = await broadcast_embed(
+            "New Release",
+            notes,
+            COLOR_READY,
+            dt=release_date,
+            channel_id=BOT_UPDATES_CHANNEL_ID,
+        )
+        if sent:
+            save_last_release(tag)
+        else:
+            log.warning("release announcement failed for %s, will retry next tick", tag)
+            break
