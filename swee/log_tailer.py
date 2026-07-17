@@ -17,6 +17,7 @@ log = logging.getLogger("swee")
 JOIN_RE     = re.compile(r'\[LOG\]\s*(.+?) joined the server')
 LEAVE_RE    = re.compile(r'\[LOG\]\s*(.+?) left the server')
 CONNECT_RE  = re.compile(r'\[LOG\]\s*(.+?) [\d.]+ connected the server')
+USER_ID_RE  = re.compile(r'User id:\s*([^\s,)]+)')
 TS_RE       = re.compile(r'^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]\s*(.*)')
 SHUTDOWN_RE = re.compile(r'Shutdown handler: initialize\.')
 VERSION_RE  = re.compile(r'Game version is (v[\d.]+)')
@@ -29,17 +30,24 @@ FALLBACK_JOIN_DELAY_SEC = 30
 # ever get a "connected" line. This tracks a per-player timer, started on
 # "connected", that fires a fallback join notification unless a real
 # "joined" or "left" line cancels it first.
-pending_connects = {}  # display name -> asyncio.Task
+#
+# Keyed by the "(User id: steam_...)" suffix rather than display name: the name in a
+# "connected" line is the player's Steam persona name, while "joined"/"left" lines use
+# their in-game player name, and those two names can differ for the same player. Keying
+# by name meant a real "joined" line couldn't cancel the pending fallback started by
+# "connected" if the two names didn't match, producing a duplicate join notification
+# under the wrong (persona) name alongside the real one.
+pending_connects = {}  # user id (or display name, if no user id found) -> asyncio.Task
 _assistant_tasks = set()
 
 
-async def _fallback_join(name, dt):
+async def _fallback_join(key, name, dt):
     await asyncio.sleep(FALLBACK_JOIN_DELAY_SEC)
     # Self-pop after the await is safe here (unlike a plain dict mutation elsewhere in
     # the codebase, which must never cross an await) because nothing else can run
     # between the sleep resolving and this pop in asyncio's single-threaded loop; a
     # caller-side cancel-and-pop racing this is a no-op since pop() defaults to None.
-    pending_connects.pop(name, None)
+    pending_connects.pop(key, None)
     try:
         await broadcast_embed(f"{name} joined the server", None, COLOR_JOIN, dt)
         await record_join(name, dt)
@@ -81,19 +89,25 @@ async def log_tailer():
                     _, rest_msg = ts_match.groups()
                     if m := CONNECT_RE.search(rest_msg):
                         name = m.group(1)
-                        if pending := pending_connects.pop(name, None):
+                        uid_m = USER_ID_RE.search(rest_msg)
+                        key = uid_m.group(1) if uid_m else name
+                        if pending := pending_connects.pop(key, None):
                             pending.cancel()
-                        pending_connects[name] = asyncio.create_task(_fallback_join(name, dt))
+                        pending_connects[key] = asyncio.create_task(_fallback_join(key, name, dt))
                     elif m := JOIN_RE.search(rest_msg):
                         name = m.group(1)
-                        if pending := pending_connects.pop(name, None):
+                        uid_m = USER_ID_RE.search(rest_msg)
+                        key = uid_m.group(1) if uid_m else name
+                        if pending := pending_connects.pop(key, None):
                             pending.cancel()
                         await broadcast_embed(f"{name} joined the server", None, COLOR_JOIN, dt)
                         await record_join(name, dt)
                         await update_stats_message()
                     elif m := LEAVE_RE.search(rest_msg):
                         name = m.group(1)
-                        if pending := pending_connects.pop(name, None):
+                        uid_m = USER_ID_RE.search(rest_msg)
+                        key = uid_m.group(1) if uid_m else name
+                        if pending := pending_connects.pop(key, None):
                             pending.cancel()
                         await broadcast_embed(f"{name} left the server", None, COLOR_LEAVE, dt)
                         await record_leave(name, dt)
