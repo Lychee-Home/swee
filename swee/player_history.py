@@ -10,9 +10,10 @@ from swee.rest_client import rest
 log = logging.getLogger("swee")
 
 PLAYER_HISTORY_PATH = "player_history.json"
+SESSION_STATE_PATH = "session_state.json"
 player_history = {}   # userId -> {"name": str, "last_seen": ISO8601 str}
 online_players = {}   # display name -> userId, refreshed on join/leave/tick
-session_started = {}  # display name -> ISO8601 join timestamp, cleared on leave (not persisted)
+session_started = {}  # display name -> ISO8601 join timestamp, cleared on leave, persisted to SESSION_STATE_PATH
 # Safe without a lock only because these dicts are never mutated across an `await`
 # (asyncio is single-threaded); if that changes, guard the mutation with a lock.
 #
@@ -38,6 +39,22 @@ def save_player_history():
         json.dump(player_history, f, indent=2)
 
 
+def load_session_state():
+    session_started.clear()
+    try:
+        with open(SESSION_STATE_PATH) as f:
+            session_started.update(json.load(f))
+    except FileNotFoundError:
+        pass
+    except json.JSONDecodeError:
+        log.warning("session_state.json is corrupt, starting with empty session state")
+
+
+def save_session_state():
+    with open(SESSION_STATE_PATH, "w") as f:
+        json.dump(session_started, f, indent=2)
+
+
 async def record_join(name, dt):
     try:
         data = await rest.players()
@@ -55,6 +72,7 @@ async def record_join(name, dt):
             player_history[uid] = {"name": name, "last_seen": dt.isoformat()}
             player_history.pop(f"name:{name}", None)  # supersede any stale fallback-key entry
             save_player_history()
+            save_session_state()
             return
 
 
@@ -68,6 +86,7 @@ async def record_leave(name, dt):
         log.warning("player history: no stable ID found for %s on leave, using fallback key", name)
     player_history[uid] = {"name": name, "last_seen": dt.isoformat()}
     save_player_history()
+    save_session_state()
 
 
 def refresh_online_players(players_list):
@@ -83,3 +102,4 @@ def refresh_online_players(players_list):
         player_history[uid] = {"name": p["name"], "last_seen": now_iso}
         player_history.pop(f"name:{p['name']}", None)  # supersede any stale fallback-key entry
     save_player_history()
+    save_session_state()
