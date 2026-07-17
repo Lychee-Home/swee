@@ -5,8 +5,8 @@ import discord
 
 from swee.bot import bot
 from swee.config import ACTIVITY_CHANNEL_ID, COLOR_READY, OFFLINE_PLAYERS_LIMIT
-from swee.player_history import session_started
 from swee.cpu import get_cpu_usage
+from swee.player_history import session_started
 from swee.ram import get_ram_usage
 
 log = logging.getLogger("swee")
