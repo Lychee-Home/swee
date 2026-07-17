@@ -30,6 +30,7 @@ FALLBACK_JOIN_DELAY_SEC = 30
 # "connected", that fires a fallback join notification unless a real
 # "joined" or "left" line cancels it first.
 pending_connects = {}  # display name -> asyncio.Task
+_assistant_tasks = set()
 
 
 async def _fallback_join(name, dt):
@@ -101,7 +102,9 @@ async def log_tailer():
                         name, text = m.groups()
                         question = assistant.parse_mention(text)
                         if question:
-                            asyncio.create_task(assistant.handle_mention(name, question))
+                            task = asyncio.create_task(assistant.handle_mention(name, question))
+                            _assistant_tasks.add(task)
+                            task.add_done_callback(_assistant_tasks.discard)
                 else:
                     if SHUTDOWN_RE.search(msg):
                         if restart_module._bot_restart_in_progress:

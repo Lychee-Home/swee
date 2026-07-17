@@ -1,4 +1,5 @@
 import difflib
+import json
 import logging
 import re
 import time
@@ -54,10 +55,13 @@ def fuzzy_match_pal_name(query, known_names):
 
 
 async def _cargoquery(params):
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        r = await client.get(WIKI_API_BASE, params={**params, "action": "cargoquery", "format": "json"})
-        r.raise_for_status()
-        return r.json()
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(WIKI_API_BASE, params={**params, "action": "cargoquery", "format": "json"})
+            r.raise_for_status()
+            return r.json()
+    except httpx.HTTPError:
+        return {"error": "wiki lookup failed"}
 
 
 async def get_known_pal_names():
@@ -128,14 +132,15 @@ async def ask_claude(question):
             messages=messages,
         )
         if response.stop_reason != "tool_use":
-            return "".join(block.text for block in response.content if block.type == "text").strip()
+            text = "".join(block.text for block in response.content if block.type == "text").strip()
+            return text or "Sorry, I couldn't figure that one out."
         messages.append({"role": "assistant", "content": response.content})
         tool_results = []
         for block in response.content:
             if block.type != "tool_use":
                 continue
             result = await lookup_pal(block.input["pal_name"], block.input["aspect"])
-            tool_results.append({"type": "tool_result", "tool_use_id": block.id, "content": str(result)})
+            tool_results.append({"type": "tool_result", "tool_use_id": block.id, "content": json.dumps(result)})
         messages.append({"role": "user", "content": tool_results})
     return "Sorry, I couldn't figure that one out."
 
@@ -144,6 +149,8 @@ _last_answered = {}
 
 
 async def handle_mention(player_name, question):
+    if _anthropic is None:
+        return
     now = time.monotonic()
     if is_on_cooldown(player_name, _last_answered, ASK_COOLDOWN_SEC, now):
         return
