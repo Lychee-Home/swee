@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+from datetime import datetime, timezone
 
 import httpx
 from discord.ext import tasks
@@ -10,13 +11,40 @@ from swee.embeds import broadcast_embed
 
 log = logging.getLogger("swee")
 
-RELEASE_NOTE_RE = re.compile(
-    r'^\*\s*(?P<type>\w+)(\([^)]*\))?!?:\s*(?P<desc>.+?)\s+by\s+@\S+\s+in\s+\S+$'
+# release-please's changelog format groups bullets under "### <Section>" headers rather than
+# prefixing each line with a Conventional Commit type, and appends " ([#N](url)) ([sha](url))"
+# link references to each bullet instead of GitHub's auto-generated "by @user in url" suffix.
+RELEASE_NOTE_SECTION_RE = re.compile(r'^###\s+(?P<section>.+?)\s*$')
+RELEASE_NOTE_BULLET_RE = re.compile(
+    r'^\*\s*(?P<desc>.+?)\s*(?:\(\[[^\]]+\]\([^)]+\)\)\s*)*$'
 )
-RELEASE_NOTE_LABELS = {"feat": "New", "fix": "Fixes", "perf": "Fixes"}
+RELEASE_NOTE_LABELS = {"Features": "New", "Bug Fixes": "Fixes", "Performance Improvements": "Fixes"}
 # Section display order, derived from RELEASE_NOTE_LABELS itself (first-appearance order,
 # de-duplicated) so the two never drift apart.
 RELEASE_NOTE_SECTION_ORDER = tuple(dict.fromkeys(RELEASE_NOTE_LABELS.values()))
+
+# release-please's top-of-body header, e.g. "## [2.5.0](compare-url) (2026-07-17)" (or, for a
+# repo's very first release with no prior tag to compare against, "## 2.5.0 (2026-07-17)").
+RELEASE_HEADER_RE = re.compile(
+    r'^##\s+(?:\[(?P<version_linked>[^\]]+)\]\([^)]*\)|(?P<version_plain>\S+))'
+    r'\s*\((?P<date>\d{4}-\d{2}-\d{2})\)\s*$'
+)
+
+
+def parse_release_header(body):
+    for line in body.splitlines():
+        m = RELEASE_HEADER_RE.match(line.strip())
+        if not m:
+            continue
+        version = m.group("version_linked") or m.group("version_plain")
+        date = datetime.strptime(m.group("date"), "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        return version, date
+    return None, None
+
+
+# Matches env var names like GITHUB_REPO or PALWORLD_SETTINGS_INI_PATH: internal bot config that
+# means nothing to players, so bullets mentioning one are dropped from the announcement.
+ENV_VAR_MENTION_RE = re.compile(r'\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b')
 
 LAST_RELEASE_PATH = "last_release.json"
 last_release_tag = None  # cached in-memory; mirrors last_release.json on disk
@@ -53,15 +81,23 @@ async def fetch_latest_release():
 
 
 def humanize_release_notes(body):
+    version, _ = parse_release_header(body)
     grouped = {}
+    label = None
     for line in body.splitlines():
-        m = RELEASE_NOTE_RE.match(line.strip())
-        if not m:
+        line = line.strip()
+        section_match = RELEASE_NOTE_SECTION_RE.match(line)
+        if section_match:
+            label = RELEASE_NOTE_LABELS.get(section_match.group("section"))
             continue
-        label = RELEASE_NOTE_LABELS.get(m.group("type"))
         if not label:
             continue
-        desc = m.group("desc").strip()
+        bullet_match = RELEASE_NOTE_BULLET_RE.match(line)
+        if not bullet_match:
+            continue
+        desc = bullet_match.group("desc").strip()
+        if ENV_VAR_MENTION_RE.search(desc):
+            continue
         if desc:
             desc = desc[0].upper() + desc[1:]
         grouped.setdefault(label, []).append(desc)
@@ -70,6 +106,8 @@ def humanize_release_notes(body):
         return None
 
     sections = []
+    if version:
+        sections.append(f"**{version}**")
     for label in RELEASE_NOTE_SECTION_ORDER:
         if label in grouped:
             lines = "\n".join(f"• {d}" for d in grouped[label])
@@ -101,6 +139,7 @@ async def release_ticker():
         return
 
     body = release.get("body") or ""
+    _, release_date = parse_release_header(body)
     notes = humanize_release_notes(body)
     if notes is None:
         notes = body or "No release notes."
@@ -108,9 +147,10 @@ async def release_ticker():
         if len(notes) > max_len:
             notes = notes[:max_len] + "…"
     sent = await broadcast_embed(
-        f"{tag} released",
+        "New Release",
         notes,
         COLOR_READY,
+        dt=release_date,
         channel_id=BOT_UPDATES_CHANNEL_ID,
     )
     if sent:
