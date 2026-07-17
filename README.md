@@ -85,6 +85,11 @@ logged to `ASSISTANT_LOG_CHANNEL_ID` for admin visibility. Each player is limite
 question per `ASK_COOLDOWN_SEC` (default 30s) to limit broadcast spam and API cost. Requires
 `ANTHROPIC_API_KEY` — leave it unset to disable the feature entirely.
 
+Known limitation: map/resource-location questions (e.g. "where can I find Pure Quartz") aren't
+grounded in live data — there's no pal to look up, so these fall back to Claude's general knowledge
+and can be vague or wrong. Only pal-specific questions (breeding, drops, work suitability, stats,
+passive skills) are backed by a live lookup.
+
 ### Server update
 
 `/update` saves the world, stops the Palworld service, runs `steamcmd` against

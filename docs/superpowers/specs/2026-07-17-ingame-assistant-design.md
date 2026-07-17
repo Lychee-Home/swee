@@ -148,3 +148,10 @@ decline; ask two questions inside the cooldown window and confirm the second is 
 - No conversation memory across questions — each `@swee` message is answered independently.
 - No admin command to adjust `ASK_COOLDOWN_SEC` at runtime — it's an env var like the RAM-restart
   tuning constants, changed via `.env` + restart.
+- No map/resource-location lookups (e.g. "where can I find Pure Quartz"). `lookup_pal` only covers
+  pal-specific data keyed by pal name; the palworld.wiki.gg Cargo tables checked during design have
+  no equivalent structured table for mineable-resource node locations (`LocationEntity` covers
+  pal/human spawns, not ore/mineral gathering nodes; `DropInteract` covers interactable loot like
+  chests, not mining). Questions like this fall back to Claude's general knowledge, same as any
+  question outside the tool's coverage, and the answer will be a vague, unverified guess rather
+  than data-grounded.
