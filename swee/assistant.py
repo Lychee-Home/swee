@@ -148,7 +148,9 @@ async def ask_claude(question, history=None):
         )
         if response.stop_reason != "tool_use":
             text = "".join(block.text for block in response.content if block.type == "text").strip()
-            return text or "Sorry, I couldn't figure that one out."
+            if not text:
+                raise RuntimeError("ask_claude: empty response text")
+            return text
         messages.append({"role": "assistant", "content": response.content})
         tool_results = []
         for block in response.content:
@@ -157,7 +159,7 @@ async def ask_claude(question, history=None):
             result = await lookup_pal(block.input["pal_name"], block.input["aspect"])
             tool_results.append({"type": "tool_result", "tool_use_id": block.id, "content": json.dumps(result)})
         messages.append({"role": "user", "content": tool_results})
-    return "Sorry, I couldn't figure that one out."
+    raise RuntimeError("ask_claude: tool-use loop exhausted without a final answer")
 
 
 _last_answered = {}
