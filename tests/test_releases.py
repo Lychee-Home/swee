@@ -1,0 +1,79 @@
+import os
+import unittest
+
+# swee.config reads required settings from the environment at import time; releases.py imports
+# it for GITHUB_REPO/etc, so stub the env before importing, same as any other config consumer.
+os.environ.setdefault("DISCORD_BOT_TOKEN", "x")
+os.environ.setdefault("GUILD_ID", "1")
+os.environ.setdefault("ADMIN_ROLE_ID", "1")
+os.environ.setdefault("RELAY_CHANNEL_ID", "1")
+os.environ.setdefault("STATS_CHANNEL_ID", "1")
+os.environ.setdefault("ACTIVITY_CHANNEL_ID", "1")
+os.environ.setdefault("ALERTS_CHANNEL_ID", "1")
+os.environ.setdefault("ADMIN_CHANNEL_ID", "1")
+os.environ.setdefault("COMMANDS_CHANNEL_ID", "1")
+os.environ.setdefault("BOT_UPDATES_CHANNEL_ID", "1")
+os.environ.setdefault("REST_HOST", "x")
+os.environ.setdefault("REST_PORT", "1")
+os.environ.setdefault("REST_USER", "x")
+os.environ.setdefault("REST_PASSWORD", "x")
+os.environ.setdefault("PALWORLD_SETTINGS_INI_PATH", "/tmp/x")
+os.environ.setdefault("PALWORLD_INSTALL_DIR", "/tmp")
+
+from swee.releases import humanize_release_notes  # noqa: E402
+
+RELEASE_PLEASE_BODY = (
+    "## [2.5.0](https://github.com/Lychee-Home/swee/compare/v2.4.0...v2.5.0) (2026-07-17)\n"
+    "\n"
+    "\n"
+    "### Features\n"
+    "\n"
+    "* broadcast in-game warning and delay before /restart and /update "
+    "([#31](https://github.com/Lychee-Home/swee/issues/31)) "
+    "([d8bc002](https://github.com/Lychee-Home/swee/commit/d8bc0024a9da15c8d50aefb8e2d7ba993b797606))\n"
+    "* make GITHUB_REPO optional "
+    "([#29](https://github.com/Lychee-Home/swee/issues/29)) "
+    "([8d6d6ff](https://github.com/Lychee-Home/swee/commit/8d6d6ff2f4bd4f6c3146c9eac70470e716459ed8))\n"
+    "\n"
+    "\n"
+    "### Bug Fixes\n"
+    "\n"
+    "* add fallback join notification for missed 'joined the server' log lines "
+    "([#33](https://github.com/Lychee-Home/swee/issues/33)) "
+    "([b41369d](https://github.com/Lychee-Home/swee/commit/b41369da8322621296885d5ab91888fe5a0250b7))\n"
+)
+
+
+class HumanizeReleaseNotesTests(unittest.TestCase):
+    def test_strips_pr_and_commit_links_from_release_please_body(self):
+        notes = humanize_release_notes(RELEASE_PLEASE_BODY)
+        self.assertNotIn("http", notes)
+        self.assertNotIn("#31", notes)
+        self.assertNotIn("d8bc002", notes)
+
+    def test_groups_features_and_fixes_under_labeled_sections(self):
+        notes = humanize_release_notes(RELEASE_PLEASE_BODY)
+        self.assertEqual(
+            notes,
+            "**New**\n"
+            "• Broadcast in-game warning and delay before /restart and /update\n"
+            "• Make GITHUB_REPO optional\n"
+            "\n"
+            "**Fixes**\n"
+            "• Add fallback join notification for missed 'joined the server' log lines",
+        )
+
+    def test_bullet_without_link_suffix_is_still_parsed(self):
+        body = "### Features\n\n* some manually written bullet\n"
+        self.assertEqual(humanize_release_notes(body), "**New**\n• Some manually written bullet")
+
+    def test_unrecognized_section_is_ignored(self):
+        body = "### Miscellaneous\n\n* something not categorized\n"
+        self.assertIsNone(humanize_release_notes(body))
+
+    def test_returns_none_for_body_with_no_bullets(self):
+        self.assertIsNone(humanize_release_notes("## [2.5.0] (2026-07-17)\n\nNothing here.\n"))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -10,10 +10,14 @@ from swee.embeds import broadcast_embed
 
 log = logging.getLogger("swee")
 
-RELEASE_NOTE_RE = re.compile(
-    r'^\*\s*(?P<type>\w+)(\([^)]*\))?!?:\s*(?P<desc>.+?)\s+by\s+@\S+\s+in\s+\S+$'
+# release-please's changelog format groups bullets under "### <Section>" headers rather than
+# prefixing each line with a Conventional Commit type, and appends " ([#N](url)) ([sha](url))"
+# link references to each bullet instead of GitHub's auto-generated "by @user in url" suffix.
+RELEASE_NOTE_SECTION_RE = re.compile(r'^###\s+(?P<section>.+?)\s*$')
+RELEASE_NOTE_BULLET_RE = re.compile(
+    r'^\*\s*(?P<desc>.+?)\s*(?:\(\[[^\]]+\]\([^)]+\)\)\s*)*$'
 )
-RELEASE_NOTE_LABELS = {"feat": "New", "fix": "Fixes", "perf": "Fixes"}
+RELEASE_NOTE_LABELS = {"Features": "New", "Bug Fixes": "Fixes", "Performance Improvements": "Fixes"}
 # Section display order, derived from RELEASE_NOTE_LABELS itself (first-appearance order,
 # de-duplicated) so the two never drift apart.
 RELEASE_NOTE_SECTION_ORDER = tuple(dict.fromkeys(RELEASE_NOTE_LABELS.values()))
@@ -54,14 +58,19 @@ async def fetch_latest_release():
 
 def humanize_release_notes(body):
     grouped = {}
+    label = None
     for line in body.splitlines():
-        m = RELEASE_NOTE_RE.match(line.strip())
-        if not m:
+        line = line.strip()
+        section_match = RELEASE_NOTE_SECTION_RE.match(line)
+        if section_match:
+            label = RELEASE_NOTE_LABELS.get(section_match.group("section"))
             continue
-        label = RELEASE_NOTE_LABELS.get(m.group("type"))
         if not label:
             continue
-        desc = m.group("desc").strip()
+        bullet_match = RELEASE_NOTE_BULLET_RE.match(line)
+        if not bullet_match:
+            continue
+        desc = bullet_match.group("desc").strip()
         if desc:
             desc = desc[0].upper() + desc[1:]
         grouped.setdefault(label, []).append(desc)
