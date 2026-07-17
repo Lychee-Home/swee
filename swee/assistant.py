@@ -3,6 +3,12 @@ import logging
 import re
 
 import httpx
+from anthropic import AsyncAnthropic
+
+try:
+    from swee.config import ANTHROPIC_API_KEY
+except KeyError:
+    ANTHROPIC_API_KEY = None
 
 log = logging.getLogger("swee")
 
@@ -79,3 +85,56 @@ async def lookup_pal(pal_name, aspect):
     if not rows:
         return {"error": f"no {aspect} data found for {matched}"}
     return {"pal": matched, "aspect": aspect, "data": rows}
+
+
+ASSISTANT_SYSTEM_PROMPT = (
+    "You are swee, a Discord bot answering Palworld questions asked by players in-game chat. "
+    "Your reply is broadcast to every player on the server, so keep it to one short sentence. "
+    "For anything about a specific pal — breeding, drops, work suitability, stats, or passive "
+    "skills — call the lookup_pal tool rather than guessing exact values. For broader strategy or "
+    "general mechanics questions the tool can't answer, use your own Palworld knowledge, but don't "
+    "invent specific numbers you're not sure of. If the question isn't about Palworld, reply that "
+    "you can only help with Palworld questions."
+)
+
+LOOKUP_PAL_TOOL = {
+    "name": "lookup_pal",
+    "description": "Look up structured data about a specific Palworld pal from the live wiki database.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "pal_name": {"type": "string", "description": "The pal's name, e.g. 'Lamball'"},
+            "aspect": {
+                "type": "string",
+                "enum": list(ASPECT_TABLES.keys()),
+                "description": "Which kind of data to fetch",
+            },
+        },
+        "required": ["pal_name", "aspect"],
+    },
+}
+
+_anthropic = AsyncAnthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
+
+
+async def ask_claude(question):
+    messages = [{"role": "user", "content": question}]
+    for _ in range(3):
+        response = await _anthropic.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=200,
+            system=ASSISTANT_SYSTEM_PROMPT,
+            tools=[LOOKUP_PAL_TOOL],
+            messages=messages,
+        )
+        if response.stop_reason != "tool_use":
+            return "".join(block.text for block in response.content if block.type == "text").strip()
+        messages.append({"role": "assistant", "content": response.content})
+        tool_results = []
+        for block in response.content:
+            if block.type != "tool_use":
+                continue
+            result = await lookup_pal(block.input["pal_name"], block.input["aspect"])
+            tool_results.append({"type": "tool_result", "tool_use_id": block.id, "content": str(result)})
+        messages.append({"role": "user", "content": tool_results})
+    return "Sorry, I couldn't figure that one out."

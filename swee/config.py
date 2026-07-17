@@ -22,6 +22,7 @@ ALERTS_CHANNEL_ID   = int(os.environ["ALERTS_CHANNEL_ID"])
 BOT_UPDATES_CHANNEL_ID = int(os.environ["BOT_UPDATES_CHANNEL_ID"])
 GITHUB_REPO            = os.environ.get("GITHUB_REPO") or None
 GITHUB_TOKEN           = os.environ.get("GITHUB_TOKEN")
+ANTHROPIC_API_KEY      = os.environ.get("ANTHROPIC_API_KEY")
 PALWORLD_SETTINGS_INI_PATH = os.environ["PALWORLD_SETTINGS_INI_PATH"]
 PALWORLD_SERVICE_NAME = os.environ.get("PALWORLD_SERVICE_NAME", "palworld")
 PALWORLD_INSTALL_DIR = os.environ["PALWORLD_INSTALL_DIR"]
