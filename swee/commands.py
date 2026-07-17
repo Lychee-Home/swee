@@ -6,11 +6,11 @@ from discord import app_commands
 
 import swee.restart as restart_module
 from swee.bot import bot, in_commands_channel, is_admin
-from swee.config import COLOR_CHAT, COLOR_SHUTDOWN, OFFLINE_PLAYERS_LIMIT
+from swee.config import COLOR_CHAT, COLOR_SHUTDOWN, OFFLINE_PLAYERS_LIMIT, RAM_RESTART_WARNING_SEC
 from swee.embeds import add_status_fields, format_offline_field, format_online_field, offline_entries_from_history
 from swee.player_history import online_players, player_history, refresh_online_players, session_started
 from swee.rest_client import rest
-from swee.restart import restart_palworld
+from swee.restart import restart_palworld, warn_and_wait
 from swee.server_update import update_palworld
 
 log = logging.getLogger("swee")
@@ -75,12 +75,22 @@ async def broadcast(interaction: discord.Interaction, message: str):
 @bot.tree.command(description="Restart the Palworld service")
 @is_admin()
 async def restart(interaction: discord.Interaction):
+    warning_sec = int(RAM_RESTART_WARNING_SEC)
     embed = discord.Embed(
         title="Restarting Palworld server",
         color=COLOR_SHUTDOWN,
     )
-    embed.add_field(name="Status", value="Sending restart command…")
+    embed.add_field(name="Status", value="Broadcasting restart warning…")
     await interaction.response.send_message(embed=embed)
+
+    await warn_and_wait(
+        "Restarting server",
+        f"Restarting server in {warning_sec}s (requested by admin).",
+        f"Server restarting in {warning_sec}s",
+    )
+
+    embed.set_field_at(0, name="Status", value="Sending restart command…")
+    await interaction.edit_original_response(embed=embed)
 
     async def on_progress(status):
         embed.set_field_at(0, name="Status", value=status)
@@ -101,7 +111,7 @@ async def update(interaction: discord.Interaction):
         title="Updating Palworld server",
         color=COLOR_SHUTDOWN,
     )
-    embed.add_field(name="Status", value="Saving world…")
+    embed.add_field(name="Status", value="Broadcasting update warning…")
     await interaction.response.send_message(embed=embed)
 
     async def on_progress(status):

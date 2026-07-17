@@ -5,8 +5,9 @@ import time
 import discord
 
 import swee.restart as restart_module
-from swee.config import COLOR_LEAVE, COLOR_READY, PALWORLD_INSTALL_DIR, PALWORLD_SERVICE_NAME, STEAMCMD_PATH
+from swee.config import COLOR_LEAVE, COLOR_READY, PALWORLD_INSTALL_DIR, PALWORLD_SERVICE_NAME, RAM_RESTART_WARNING_SEC, STEAMCMD_PATH
 from swee.rest_client import rest
+from swee.restart import warn_and_wait
 
 log = logging.getLogger("swee")
 
@@ -14,6 +15,15 @@ PALWORLD_STEAM_APP_ID = "2394010"
 
 
 async def update_palworld(on_progress=None):
+    warning_sec = int(RAM_RESTART_WARNING_SEC)
+    if on_progress:
+        await on_progress("Broadcasting update warning…")
+    await warn_and_wait(
+        "Updating server",
+        f"Updating server — restarting in {warning_sec}s for an update.",
+        f"Server restarting in {warning_sec}s for an update",
+    )
+
     if on_progress:
         await on_progress("Saving world…")
     try:

@@ -69,21 +69,29 @@ async def restart_palworld(on_progress=None):
     return embed
 
 
-async def auto_restart_sequence(pct):
-    global _bot_restart_in_progress
+async def warn_and_wait(discord_title, discord_description, ingame_message):
     warning_sec = int(RAM_RESTART_WARNING_SEC)
     await broadcast_embed(
-        "High RAM usage detected",
-        f"RAM usage at {pct}% — restarting server in {warning_sec}s.",
+        discord_title,
+        discord_description,
         COLOR_SHUTDOWN,
         channel_id=ALERTS_CHANNEL_ID,
     )
     try:
-        await rest.announce(f"Server restarting in {warning_sec}s due to high memory usage")
+        await rest.announce(ingame_message)
     except Exception:
-        log.exception("in-game auto-restart announce failed")
+        log.exception("in-game restart announce failed")
+    await asyncio.sleep(warning_sec)
 
-    await asyncio.sleep(RAM_RESTART_WARNING_SEC)
+
+async def auto_restart_sequence(pct):
+    global _bot_restart_in_progress
+    warning_sec = int(RAM_RESTART_WARNING_SEC)
+    await warn_and_wait(
+        "High RAM usage detected",
+        f"RAM usage at {pct}% — restarting server in {warning_sec}s.",
+        f"Server restarting in {warning_sec}s due to high memory usage",
+    )
 
     _bot_restart_in_progress = True
     try:
