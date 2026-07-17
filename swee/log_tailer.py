@@ -33,9 +33,12 @@ pending_connects = {}  # display name -> asyncio.Task
 async def _fallback_join(name, dt):
     await asyncio.sleep(FALLBACK_JOIN_DELAY_SEC)
     pending_connects.pop(name, None)
-    await broadcast_embed(f"{name} joined the server", None, COLOR_JOIN, dt)
-    await record_join(name, dt)
-    await update_stats_message()
+    try:
+        await broadcast_embed(f"{name} joined the server", None, COLOR_JOIN, dt)
+        await record_join(name, dt)
+        await update_stats_message()
+    except Exception:
+        log.exception("fallback join broadcast failed for player %s", name)
 
 
 async def log_tailer():
