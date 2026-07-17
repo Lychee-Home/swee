@@ -6,6 +6,7 @@ import discord
 from swee.bot import bot
 from swee.config import ACTIVITY_CHANNEL_ID, COLOR_READY, OFFLINE_PLAYERS_LIMIT
 from swee.player_history import session_started
+from swee.cpu import get_cpu_usage
 from swee.ram import get_ram_usage
 
 log = logging.getLogger("swee")
@@ -79,6 +80,10 @@ def build_stats_embed(info, metrics, players, offline_entries):
         embed.add_field(name="System RAM", value=get_ram_usage())
     except Exception:
         log.exception("RAM read failed")
+    try:
+        embed.add_field(name="System CPU", value=get_cpu_usage())
+    except Exception:
+        log.exception("CPU read failed")
     embed.timestamp = datetime.now(timezone.utc)
     embed.set_footer(text="Last updated")
     return embed
