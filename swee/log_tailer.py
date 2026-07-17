@@ -15,9 +15,34 @@ log = logging.getLogger("swee")
 
 JOIN_RE     = re.compile(r'\[LOG\]\s*(.+?) joined the server')
 LEAVE_RE    = re.compile(r'\[LOG\]\s*(.+?) left the server')
+CONNECT_RE  = re.compile(r'\[LOG\]\s*(.+?) [\d.]+ connected the server')
 TS_RE       = re.compile(r'^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]\s*(.*)')
 SHUTDOWN_RE = re.compile(r'Shutdown handler: initialize\.')
 VERSION_RE  = re.compile(r'Game version is (v[\d.]+)')
+
+FALLBACK_JOIN_DELAY_SEC = 30
+
+# Palworld doesn't always log "X joined the server" for a connection that
+# clearly succeeded (player ends up chatting/playing) — some sessions only
+# ever get a "connected" line. This tracks a per-player timer, started on
+# "connected", that fires a fallback join notification unless a real
+# "joined" or "left" line cancels it first.
+pending_connects = {}  # display name -> asyncio.Task
+
+
+async def _fallback_join(name, dt):
+    await asyncio.sleep(FALLBACK_JOIN_DELAY_SEC)
+    # Self-pop after the await is safe here (unlike a plain dict mutation elsewhere in
+    # the codebase, which must never cross an await) because nothing else can run
+    # between the sleep resolving and this pop in asyncio's single-threaded loop; a
+    # caller-side cancel-and-pop racing this is a no-op since pop() defaults to None.
+    pending_connects.pop(name, None)
+    try:
+        await broadcast_embed(f"{name} joined the server", None, COLOR_JOIN, dt)
+        await record_join(name, dt)
+        await update_stats_message()
+    except Exception:
+        log.exception("fallback join broadcast failed for player %s", name)
 
 
 async def log_tailer():
@@ -51,13 +76,24 @@ async def log_tailer():
                 ts_match = TS_RE.match(msg)
                 if ts_match:
                     _, rest_msg = ts_match.groups()
-                    if m := JOIN_RE.search(rest_msg):
-                        await broadcast_embed(f"{m.group(1)} joined the server", None, COLOR_JOIN, dt)
-                        await record_join(m.group(1), dt)
+                    if m := CONNECT_RE.search(rest_msg):
+                        name = m.group(1)
+                        if pending := pending_connects.pop(name, None):
+                            pending.cancel()
+                        pending_connects[name] = asyncio.create_task(_fallback_join(name, dt))
+                    elif m := JOIN_RE.search(rest_msg):
+                        name = m.group(1)
+                        if pending := pending_connects.pop(name, None):
+                            pending.cancel()
+                        await broadcast_embed(f"{name} joined the server", None, COLOR_JOIN, dt)
+                        await record_join(name, dt)
                         await update_stats_message()
                     elif m := LEAVE_RE.search(rest_msg):
-                        await broadcast_embed(f"{m.group(1)} left the server", None, COLOR_LEAVE, dt)
-                        await record_leave(m.group(1), dt)
+                        name = m.group(1)
+                        if pending := pending_connects.pop(name, None):
+                            pending.cancel()
+                        await broadcast_embed(f"{name} left the server", None, COLOR_LEAVE, dt)
+                        await record_leave(name, dt)
                         await update_stats_message()
                 else:
                     if SHUTDOWN_RE.search(msg):
