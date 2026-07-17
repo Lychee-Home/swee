@@ -20,7 +20,9 @@ os.environ.setdefault("REST_PASSWORD", "x")
 os.environ.setdefault("PALWORLD_SETTINGS_INI_PATH", "/tmp/x")
 os.environ.setdefault("PALWORLD_INSTALL_DIR", "/tmp")
 
-from swee.releases import humanize_release_notes  # noqa: E402
+from datetime import datetime, timezone  # noqa: E402
+
+from swee.releases import humanize_release_notes, parse_release_header  # noqa: E402
 
 RELEASE_PLEASE_BODY = (
     "## [2.5.0](https://github.com/Lychee-Home/swee/compare/v2.4.0...v2.5.0) (2026-07-17)\n"
@@ -55,6 +57,8 @@ class HumanizeReleaseNotesTests(unittest.TestCase):
         notes = humanize_release_notes(RELEASE_PLEASE_BODY)
         self.assertEqual(
             notes,
+            "**2.5.0**\n"
+            "\n"
             "**New**\n"
             "• Broadcast in-game warning and delay before /restart and /update\n"
             "• Make GITHUB_REPO optional\n"
@@ -72,7 +76,22 @@ class HumanizeReleaseNotesTests(unittest.TestCase):
         self.assertIsNone(humanize_release_notes(body))
 
     def test_returns_none_for_body_with_no_bullets(self):
-        self.assertIsNone(humanize_release_notes("## [2.5.0] (2026-07-17)\n\nNothing here.\n"))
+        self.assertIsNone(humanize_release_notes("## [2.5.0](url) (2026-07-17)\n\nNothing here.\n"))
+
+
+class ParseReleaseHeaderTests(unittest.TestCase):
+    def test_parses_linked_version_and_date(self):
+        version, date = parse_release_header(RELEASE_PLEASE_BODY)
+        self.assertEqual(version, "2.5.0")
+        self.assertEqual(date, datetime(2026, 7, 17, tzinfo=timezone.utc))
+
+    def test_parses_plain_version_with_no_compare_link(self):
+        version, date = parse_release_header("## 1.0.0 (2026-01-01)\n\n### Features\n\n* first release\n")
+        self.assertEqual(version, "1.0.0")
+        self.assertEqual(date, datetime(2026, 1, 1, tzinfo=timezone.utc))
+
+    def test_returns_none_none_when_header_absent(self):
+        self.assertEqual(parse_release_header("no header here\n"), (None, None))
 
 
 if __name__ == "__main__":

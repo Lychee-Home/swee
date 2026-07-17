@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+from datetime import datetime, timezone
 
 import httpx
 from discord.ext import tasks
@@ -21,6 +22,24 @@ RELEASE_NOTE_LABELS = {"Features": "New", "Bug Fixes": "Fixes", "Performance Imp
 # Section display order, derived from RELEASE_NOTE_LABELS itself (first-appearance order,
 # de-duplicated) so the two never drift apart.
 RELEASE_NOTE_SECTION_ORDER = tuple(dict.fromkeys(RELEASE_NOTE_LABELS.values()))
+
+# release-please's top-of-body header, e.g. "## [2.5.0](compare-url) (2026-07-17)" (or, for a
+# repo's very first release with no prior tag to compare against, "## 2.5.0 (2026-07-17)").
+RELEASE_HEADER_RE = re.compile(
+    r'^##\s+(?:\[(?P<version_linked>[^\]]+)\]\([^)]*\)|(?P<version_plain>\S+))'
+    r'\s*\((?P<date>\d{4}-\d{2}-\d{2})\)\s*$'
+)
+
+
+def parse_release_header(body):
+    for line in body.splitlines():
+        m = RELEASE_HEADER_RE.match(line.strip())
+        if not m:
+            continue
+        version = m.group("version_linked") or m.group("version_plain")
+        date = datetime.strptime(m.group("date"), "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        return version, date
+    return None, None
 
 LAST_RELEASE_PATH = "last_release.json"
 last_release_tag = None  # cached in-memory; mirrors last_release.json on disk
@@ -57,6 +76,7 @@ async def fetch_latest_release():
 
 
 def humanize_release_notes(body):
+    version, _ = parse_release_header(body)
     grouped = {}
     label = None
     for line in body.splitlines():
@@ -79,6 +99,8 @@ def humanize_release_notes(body):
         return None
 
     sections = []
+    if version:
+        sections.append(f"**{version}**")
     for label in RELEASE_NOTE_SECTION_ORDER:
         if label in grouped:
             lines = "\n".join(f"• {d}" for d in grouped[label])
@@ -110,6 +132,7 @@ async def release_ticker():
         return
 
     body = release.get("body") or ""
+    _, release_date = parse_release_header(body)
     notes = humanize_release_notes(body)
     if notes is None:
         notes = body or "No release notes."
@@ -117,9 +140,10 @@ async def release_ticker():
         if len(notes) > max_len:
             notes = notes[:max_len] + "…"
     sent = await broadcast_embed(
-        f"{tag} released",
+        "New Release",
         notes,
         COLOR_READY,
+        dt=release_date,
         channel_id=BOT_UPDATES_CHANNEL_ID,
     )
     if sent:
