@@ -44,6 +44,14 @@ def record_answered(name, last_answered, now):
     last_answered[name] = now
 
 
+def resolve_player_id(name, online_players):
+    return online_players.get(name, name)
+
+
+def pop_session(player_id, sessions):
+    sessions.pop(player_id, None)
+
+
 def fuzzy_match_pal_name(query, known_names):
     if not known_names:
         return None
@@ -146,6 +154,12 @@ async def ask_claude(question):
 
 
 _last_answered = {}
+
+_sessions = {}
+
+
+def clear_session(player_id):
+    pop_session(player_id, _sessions)
 
 
 async def handle_mention(player_name, question):

@@ -19,7 +19,7 @@ os.environ.setdefault("REST_PASSWORD", "x")
 os.environ.setdefault("PALWORLD_SETTINGS_INI_PATH", "/tmp/x")
 os.environ.setdefault("PALWORLD_INSTALL_DIR", "/tmp")
 
-from swee.assistant import is_on_cooldown, parse_mention, record_answered, fuzzy_match_pal_name
+from swee.assistant import is_on_cooldown, parse_mention, record_answered, fuzzy_match_pal_name, clear_session, pop_session, resolve_player_id
 
 
 class ParseMentionTests(unittest.TestCase):
@@ -72,3 +72,31 @@ class FuzzyMatchPalNameTests(unittest.TestCase):
 
     def test_empty_known_names_returns_none(self):
         self.assertIsNone(fuzzy_match_pal_name("lamball", []))
+
+
+class ResolvePlayerIdTests(unittest.TestCase):
+    def test_returns_userid_when_known(self):
+        self.assertEqual(resolve_player_id("Kippei", {"Kippei": "steam_123"}), "steam_123")
+
+    def test_falls_back_to_name_when_unknown(self):
+        self.assertEqual(resolve_player_id("Kippei", {}), "Kippei")
+
+
+class PopSessionTests(unittest.TestCase):
+    def test_removes_existing_session(self):
+        sessions = {"steam_123": [{"role": "user", "content": "hi"}]}
+        pop_session("steam_123", sessions)
+        self.assertNotIn("steam_123", sessions)
+
+    def test_noop_for_missing_session(self):
+        sessions = {}
+        pop_session("steam_123", sessions)
+        self.assertEqual(sessions, {})
+
+
+class ClearSessionTests(unittest.TestCase):
+    def test_clears_module_level_session_store(self):
+        import swee.assistant as assistant_module
+        assistant_module._sessions["steam_123"] = [{"role": "user", "content": "hi"}]
+        clear_session("steam_123")
+        self.assertNotIn("steam_123", assistant_module._sessions)
