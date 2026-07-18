@@ -9,6 +9,7 @@ from anthropic import AsyncAnthropic
 
 from swee.config import ANTHROPIC_API_KEY, ASK_COOLDOWN_SEC, ASSISTANT_LOG_CHANNEL_ID, COLOR_CHAT
 from swee.embeds import broadcast_embed
+from swee.player_history import online_players
 from swee.rest_client import rest
 
 log = logging.getLogger("swee")
@@ -42,6 +43,20 @@ def is_on_cooldown(name, last_answered, cooldown_sec, now):
 
 def record_answered(name, last_answered, now):
     last_answered[name] = now
+
+
+def resolve_player_id(name, online_players):
+    return online_players.get(name, name)
+
+
+def pop_session(player_id, sessions):
+    sessions.pop(player_id, None)
+
+
+def append_exchange(player_id, sessions, question, answer, limit):
+    history = sessions.get(player_id, [])
+    history = history + [{"role": "user", "content": question}, {"role": "assistant", "content": answer}]
+    sessions[player_id] = history[-(limit * 2):]
 
 
 def fuzzy_match_pal_name(query, known_names):
@@ -121,8 +136,8 @@ LOOKUP_PAL_TOOL = {
 _anthropic = AsyncAnthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
 
 
-async def ask_claude(question):
-    messages = [{"role": "user", "content": question}]
+async def ask_claude(question, history=None):
+    messages = list(history or []) + [{"role": "user", "content": question}]
     for _ in range(3):
         response = await _anthropic.messages.create(
             model="claude-haiku-4-5-20251001",
@@ -133,7 +148,9 @@ async def ask_claude(question):
         )
         if response.stop_reason != "tool_use":
             text = "".join(block.text for block in response.content if block.type == "text").strip()
-            return text or "Sorry, I couldn't figure that one out."
+            if not text:
+                raise RuntimeError("ask_claude: empty response text")
+            return text
         messages.append({"role": "assistant", "content": response.content})
         tool_results = []
         for block in response.content:
@@ -142,21 +159,32 @@ async def ask_claude(question):
             result = await lookup_pal(block.input["pal_name"], block.input["aspect"])
             tool_results.append({"type": "tool_result", "tool_use_id": block.id, "content": json.dumps(result)})
         messages.append({"role": "user", "content": tool_results})
-    return "Sorry, I couldn't figure that one out."
+    raise RuntimeError("ask_claude: tool-use loop exhausted without a final answer")
 
 
 _last_answered = {}
+
+_sessions = {}
+
+SESSION_HISTORY_LIMIT = 8
+
+
+def clear_session(player_id):
+    pop_session(player_id, _sessions)
 
 
 async def handle_mention(player_name, question):
     if _anthropic is None:
         return
+    player_id = resolve_player_id(player_name, online_players)
     now = time.monotonic()
-    if is_on_cooldown(player_name, _last_answered, ASK_COOLDOWN_SEC, now):
+    if is_on_cooldown(player_id, _last_answered, ASK_COOLDOWN_SEC, now):
         return
-    record_answered(player_name, _last_answered, now)
+    record_answered(player_id, _last_answered, now)
+    history = _sessions.get(player_id, [])
     try:
-        answer = await ask_claude(question)
+        answer = await ask_claude(question, history)
+        append_exchange(player_id, _sessions, question, answer, SESSION_HISTORY_LIMIT)
     except Exception:
         log.exception("assistant: failed to answer question from %s", player_name)
         answer = "Sorry, I couldn't look that up right now."

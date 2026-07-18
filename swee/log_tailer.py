@@ -9,7 +9,7 @@ import swee.restart as restart_module
 from swee.cause_detection import check_palworld_settings_change, detect_unplanned_restart_cause, save_last_palworld_settings
 from swee.config import ALERTS_CHANNEL_ID, COLOR_JOIN, COLOR_LEAVE, COLOR_READY, COLOR_SHUTDOWN, PACIFIC, PALWORLD_SERVICE_NAME
 from swee.embeds import broadcast_embed
-from swee.player_history import record_join, record_leave
+from swee.player_history import online_players, record_join, record_leave
 from swee.stats import update_stats_message
 
 log = logging.getLogger("swee")
@@ -109,6 +109,8 @@ async def log_tailer():
                         key = uid_m.group(1) if uid_m else name
                         if pending := pending_connects.pop(key, None):
                             pending.cancel()
+                        # must resolve before record_leave() pops `name` out of online_players below
+                        assistant.clear_session(assistant.resolve_player_id(name, online_players))
                         await broadcast_embed(f"{name} left the server", None, COLOR_LEAVE, dt)
                         await record_leave(name, dt)
                         await update_stats_message()
