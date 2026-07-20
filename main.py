@@ -7,8 +7,9 @@ import swee.commands  # noqa: F401 — registers slash commands via decorator si
 import swee.config_commands  # noqa: F401 — registers slash commands via decorator side effects
 from swee.bot import bot
 from swee.cause_detection import load_last_palworld_settings
-from swee.config import BOT_TOKEN, GITHUB_REPO, GUILD_ID, RELAY_CHANNEL_ID
+from swee.config import BOT_TOKEN, GITHUB_REPO, GUILD_ID, PALFEED_SERVICE_URL, RELAY_CHANNEL_ID
 from swee.log_tailer import log_tailer
+from swee.palfeed import load_last_event_id, palfeed_ticker
 from swee.player_history import load_player_history, load_session_state
 from swee.releases import load_last_release, release_ticker
 from swee.rest_client import rest
@@ -43,6 +44,8 @@ async def on_ready():
     stats_ticker.start()
     if GITHUB_REPO:
         release_ticker.start()
+    if PALFEED_SERVICE_URL:
+        palfeed_ticker.start()
     log.info("Logged in as %s", bot.user)
 
 
@@ -53,6 +56,7 @@ async def main():
     load_player_history()
     load_session_state()
     load_last_release()
+    load_last_event_id()
     load_last_palworld_settings()
     async with bot:
         await bot.start(BOT_TOKEN)
@@ -60,6 +64,7 @@ async def main():
         # the background task and REST client rather than leaving them dangling.
         stats_ticker.cancel()
         release_ticker.cancel()
+        palfeed_ticker.cancel()
         if _log_tailer_task:
             _log_tailer_task.cancel()
         await rest.client.aclose()

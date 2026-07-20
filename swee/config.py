@@ -8,6 +8,8 @@ load_dotenv()
 
 GUILD_ID            = int(os.environ["GUILD_ID"])
 RELAY_CHANNEL_ID    = int(os.environ["RELAY_CHANNEL_ID"]) if os.environ.get("RELAY_CHANNEL_ID") else None
+PALFEED_SERVICE_URL = os.environ.get("PALFEED_SERVICE_URL") or None
+PALFEED_CHANNEL_ID  = int(os.environ["PALFEED_CHANNEL_ID"]) if os.environ.get("PALFEED_CHANNEL_ID") else None
 STATS_CHANNEL_ID    = int(os.environ["STATS_CHANNEL_ID"])
 ADMIN_ROLE_ID       = int(os.environ["ADMIN_ROLE_ID"])
 ADMIN_CHANNEL_ID    = int(os.environ["ADMIN_CHANNEL_ID"])
@@ -39,6 +41,7 @@ PACIFIC = ZoneInfo("America/Los_Angeles")
 
 COLOR_CHAT, COLOR_JOIN, COLOR_LEAVE = 0x5865F2, 0x57F287, 0xED4245
 COLOR_SHUTDOWN, COLOR_READY = 0xFEE75C, 0x57F287
+COLOR_PALFEED = 0xF1C40F
 
 ASSISTANT_LOG_CHANNEL_ID = int(os.environ["ASSISTANT_LOG_CHANNEL_ID"]) if os.environ.get("ASSISTANT_LOG_CHANNEL_ID") else None
 ASK_COOLDOWN_SEC = float(os.environ.get("ASK_COOLDOWN_SEC", "30"))
