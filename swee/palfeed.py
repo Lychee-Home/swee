@@ -21,11 +21,11 @@ ACQUISITION_VERBS = {
 }
 
 TIER_COLORS = {
-    "Lucky": 0x9B59B6,
+    "Lucky": 0xF1C40F,
     "Awakened": 0x1ABC9C,
-    "Perfect": 0xE91E63,
-    "Excellent": 0xE67E22,
-    "Great": 0xF1C40F,
+    "Perfect": 0x9B59B6,
+    "Excellent": 0x3498DB,
+    "Great": 0x2ECC71,
 }
 
 last_event_id = 0  # cached in-memory; mirrors palfeed_state.json on disk
