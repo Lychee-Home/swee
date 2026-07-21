@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.11.0](https://github.com/Lychee-Home/swee/compare/v2.10.0...v2.11.0) (2026-07-21)
+
+
+### Features
+
+* show Online/Offline as side-by-side fields in stats embed ([#60](https://github.com/Lychee-Home/swee/issues/60)) ([b03ce8b](https://github.com/Lychee-Home/swee/commit/b03ce8b916abd6116fb2f17758aad9c14f6ff967))
+* show seconds for uptime under a minute ([#63](https://github.com/Lychee-Home/swee/issues/63)) ([db05058](https://github.com/Lychee-Home/swee/commit/db05058407e7d2efe3247b2003c7c997678ee6af))
+* show uptime as humanized duration instead of fixed hours ([#61](https://github.com/Lychee-Home/swee/issues/61)) ([4f90622](https://github.com/Lychee-Home/swee/commit/4f90622f63940800698ca0afa7ab8a8d5ad045c2))
+* stop posting Great-tier catches to palfeed ([#58](https://github.com/Lychee-Home/swee/issues/58)) ([6cbe17d](https://github.com/Lychee-Home/swee/commit/6cbe17d779f718476a279aefd302875dbc81bf6b))
+
 ## [2.10.0](https://github.com/Lychee-Home/swee/compare/v2.9.0...v2.10.0) (2026-07-21)
 
 
