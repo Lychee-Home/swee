@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.8.0](https://github.com/Lychee-Home/swee/compare/v2.7.0...v2.8.0) (2026-07-21)
+
+
+### Features
+
+* pal-catch recap feed (palfeed) ([#48](https://github.com/Lychee-Home/swee/issues/48)) ([18dba49](https://github.com/Lychee-Home/swee/commit/18dba493cef3368d202a9d8195d4808939810405))
+* per-player conversation sessions for [@swee](https://github.com/swee) assistant ([#47](https://github.com/Lychee-Home/swee/issues/47)) ([9b9f735](https://github.com/Lychee-Home/swee/commit/9b9f735a29ef4216b2ea3ea46f1915d0c83f3fcd))
+
+
+### Bug Fixes
+
+* style in-game assistant reply prefix as [swee] ([#44](https://github.com/Lychee-Home/swee/issues/44)) ([530df23](https://github.com/Lychee-Home/swee/commit/530df23bfb5e0423e7885467e444f9ac832799af))
+
 ## [2.7.0](https://github.com/Lychee-Home/swee/compare/v2.6.0...v2.7.0) (2026-07-17)
 
 
