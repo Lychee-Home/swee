@@ -4,8 +4,14 @@ from swee.uptime import format_uptime
 
 
 class FormatUptimeTests(unittest.TestCase):
+    def test_seconds_only(self):
+        self.assertEqual(format_uptime(45), "45s")
+
     def test_minutes_only(self):
         self.assertEqual(format_uptime(5 * 60), "5m")
+
+    def test_minutes_with_seconds_remainder(self):
+        self.assertEqual(format_uptime(5 * 60 + 30), "5m 30s")
 
     def test_hours_with_remainder_minutes(self):
         self.assertEqual(format_uptime(5 * 3600), "5h")
