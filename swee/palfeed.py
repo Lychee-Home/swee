@@ -4,7 +4,7 @@ import logging
 import httpx
 from discord.ext import tasks
 
-from swee.config import COLOR_PALFEED, PALFEED_CHANNEL_ID, PALFEED_SERVICE_URL
+from swee.config import PALFEED_CHANNEL_ID, PALFEED_SERVICE_URL
 from swee.embeds import broadcast_embed
 from swee.palfeed_notability import notability_tier, talent_score
 from swee.player_history import resolve_owner_name
@@ -18,6 +18,14 @@ ACQUISITION_VERBS = {
     "wild_capture": "caught",
     "hatched": "hatched",
     "purchased": "purchased",
+}
+
+TIER_COLORS = {
+    "Lucky": 0xF1C40F,
+    "Awakened": 0x1ABC9C,
+    "Perfect": 0x9B59B6,
+    "Excellent": 0x3498DB,
+    "Great": 0x2ECC71,
 }
 
 last_event_id = 0  # cached in-memory; mirrors palfeed_state.json on disk
@@ -88,7 +96,7 @@ async def palfeed_ticker():
         if tier:
             title, fields = format_catch_embed(event, tier)
             sent = await broadcast_embed(
-                title, None, COLOR_PALFEED, channel_id=PALFEED_CHANNEL_ID,
+                title, None, TIER_COLORS[tier], channel_id=PALFEED_CHANNEL_ID,
                 fields=fields, fields_inline=False,
             )
             if not sent:
