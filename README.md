@@ -33,7 +33,9 @@ Messages posted in `RELAY_CHANNEL_ID` are forwarded to the game via the REST ann
 
 A single pinned message in `STATS_CHANNEL_ID`, edited in place every minute (and on join/leave)
 with player count, FPS, uptime, version, and host system RAM usage (read from `/proc/meminfo`, so
-this must run on Linux, on the same box as the game server).
+this must run on Linux, on the same box as the game server). Online and Offline player lists sit
+side by side as inline fields, with FPS/Uptime/Day/Version on their own row below. Uptime is shown
+as a humanized duration (e.g. "3d 4h", "2w 1d", "1mo 3d") rather than a raw hour count.
 
 ### RAM auto-restart (optional)
 
@@ -94,6 +96,19 @@ Known limitation: map/resource-location questions (e.g. "where can I find Pure Q
 grounded in live data — there's no pal to look up, so these fall back to Claude's general knowledge
 and can be vague or wrong. Only pal-specific questions (breeding, drops, work suitability, stats,
 passive skills) are backed by a live lookup.
+
+### Pal-catch recap feed (palfeed, optional)
+
+If `PALFEED_SERVICE_URL` is set, the bot polls a companion `palsave-api` service (a separate
+repo/deployment that watches the Palworld server's backup rotation and decodes new-pal events)
+every 60 seconds via its `GET /events/new-pals` endpoint, and posts notable catches to
+`PALFEED_CHANNEL_ID` as an embed. Only catches meeting a notability bar are posted: rare ("Lucky")
+pals, awakened pals, or those with a talent score (HP + Attack/Shot + Defense IVs, max 300) of 280+
+("Excellent") or 300 ("Perfect") — see `swee/palfeed_notability.py`. Each embed shows the IV total
+as a percentage and a Stats field (level, HP/Attack/Defense), is colored by tier, and is timestamped
+with the pal's actual `acquired_at` time rather than when the bot noticed it. The last-seen event id
+is cached in `palfeed_state.json`; a failed post stops the batch and retries from that event next
+tick rather than skipping it. Leave `PALFEED_SERVICE_URL` unset/blank to disable palfeed entirely.
 
 ### Server update
 
