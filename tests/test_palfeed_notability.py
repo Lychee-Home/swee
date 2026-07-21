@@ -33,16 +33,16 @@ class NotabilityTierTests(unittest.TestCase):
         event = {"talent_hp": 100, "talent_shot": 90, "talent_defense": 90}
         self.assertEqual(notability_tier(event), "Excellent")
 
-    def test_great_talent_score(self):
-        event = {"talent_hp": 90, "talent_shot": 80, "talent_defense": 80}
-        self.assertEqual(notability_tier(event), "Great")
-
     def test_below_all_thresholds_is_not_notable(self):
         event = {"talent_hp": 50, "talent_shot": 50, "talent_defense": 50}
         self.assertEqual(notability_tier(event), "")
 
-    def test_boundary_just_below_great_threshold(self):
-        event = {"talent_hp": 83, "talent_shot": 83, "talent_defense": 83}  # sums to 249
+    def test_former_great_tier_score_is_not_notable(self):
+        event = {"talent_hp": 90, "talent_shot": 80, "talent_defense": 80}  # sums to 250
+        self.assertEqual(notability_tier(event), "")
+
+    def test_boundary_just_below_excellent_threshold(self):
+        event = {"talent_hp": 93, "talent_shot": 93, "talent_defense": 93}  # sums to 279
         self.assertEqual(notability_tier(event), "")
 
 

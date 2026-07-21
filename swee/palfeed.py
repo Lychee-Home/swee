@@ -26,7 +26,6 @@ TIER_COLORS = {
     "Awakened": 0x1ABC9C,
     "Perfect": 0x9B59B6,
     "Excellent": 0x3498DB,
-    "Great": 0x2ECC71,
 }
 
 last_event_id = 0  # cached in-memory; mirrors palfeed_state.json on disk
