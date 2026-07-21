@@ -20,14 +20,6 @@ ACQUISITION_VERBS = {
     "purchased": "purchased",
 }
 
-TIER_ARTICLES = {
-    "Lucky": "a",
-    "Awakened": "an",
-    "Perfect": "a",
-    "Excellent": "an",
-    "Great": "a",
-}
-
 last_event_id = 0  # cached in-memory; mirrors palfeed_state.json on disk
 
 
@@ -61,12 +53,11 @@ async def fetch_new_pal_events(since, limit):
 def format_catch_embed(event, tier):
     character_id = event.get("pal_name") or event.get("character_id") or "Unknown Pal"
     verb = ACQUISITION_VERBS.get(event.get("acquisition_type"), "acquired")
-    article = TIER_ARTICLES.get(tier, "a")
     owner_name = resolve_owner_name(event.get("owner_player_uid"))
     if owner_name:
-        title = f"{owner_name} {verb} {article} {tier} {character_id}"
+        title = f"{owner_name} {verb} a {character_id} with {tier} IVs"
     else:
-        title = f"{article.capitalize()} {tier} {character_id} was {verb}"
+        title = f"A {character_id} with {tier} IVs was {verb}"
 
     level = event.get("level")
     level_prefix = f"Level {level} · " if level is not None else ""
