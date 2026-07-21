@@ -65,8 +65,11 @@ def offline_entries_from_history(history, online_ids):
 
 
 def add_status_fields(embed, info, metrics, players, offline_entries):
-    embed.add_field(name="Online", value=format_online_field(players, session_started), inline=False)
-    embed.add_field(name="Offline", value=format_offline_field(offline_entries, OFFLINE_PLAYERS_LIMIT), inline=False)
+    embed.add_field(name="Offline", value=format_offline_field(offline_entries, OFFLINE_PLAYERS_LIMIT), inline=True)
+    embed.add_field(name="Online", value=format_online_field(players, session_started), inline=True)
+    # Zero-width spacer fills the 3rd inline slot so FPS starts a fresh row instead of
+    # sliding in next to Online/Offline.
+    embed.add_field(name="​", value="​", inline=True)
     embed.add_field(name="FPS", value=metrics["serverfps"])
     embed.add_field(name="Uptime", value=f"{metrics['uptime'] // 3600}h")
     embed.add_field(name="Day", value=metrics["days"])
