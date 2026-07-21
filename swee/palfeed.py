@@ -65,7 +65,8 @@ def format_catch_embed(event, tier):
     attack = event.get("talent_shot", 0)
     defense = event.get("talent_defense", 0)
     total = talent_score(event)
-    description = f"{level_prefix}{hp} HP / {attack} Attack / {defense} Defense — {total}/300 IVs"
+    percent = round(total / 300 * 100)
+    description = f"{level_prefix}{hp} HP / {attack} Attack / {defense} Defense — {percent}% IV"
 
     return title, description
 
