@@ -7,6 +7,7 @@ from discord.ext import tasks
 from swee.config import COLOR_PALFEED, PALFEED_CHANNEL_ID, PALFEED_SERVICE_URL
 from swee.embeds import broadcast_embed
 from swee.palfeed_notability import ACQUISITION_LABELS, notability_tier, talent_score
+from swee.player_history import resolve_owner_name
 
 log = logging.getLogger("swee")
 
@@ -49,6 +50,9 @@ def format_catch_embed(event, tier):
     level = event.get("level")
     description = acquisition + (f" — Level {level}" if level is not None else "")
     fields = [("Talent Score", f"{talent_score(event)}/300")]
+    owner_name = resolve_owner_name(event.get("owner_player_uid"))
+    if owner_name:
+        fields.append(("Owner", owner_name))
     return title, description, fields
 
 
