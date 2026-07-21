@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.10.0](https://github.com/Lychee-Home/swee/compare/v2.9.0...v2.10.0) (2026-07-21)
+
+
+### Features
+
+* color palfeed embeds by IV tier ([#56](https://github.com/Lychee-Home/swee/issues/56)) ([01a09ef](https://github.com/Lychee-Home/swee/commit/01a09ef07866eed7feac8623ecb1c70dc5a92291))
+* restructure palfeed embed as IV% and Stats fields ([#55](https://github.com/Lychee-Home/swee/issues/55)) ([8e1d98e](https://github.com/Lychee-Home/swee/commit/8e1d98e45f4a5e52c5726ea321bcaef88a956c9c))
+* show acquired_at as the palfeed embed timestamp ([#57](https://github.com/Lychee-Home/swee/issues/57)) ([cb8cdf3](https://github.com/Lychee-Home/swee/commit/cb8cdf3f07c2aec165aedf0a9d012093b51026d2))
+* show palfeed IV total as a percentage ([#54](https://github.com/Lychee-Home/swee/issues/54)) ([a3d53ad](https://github.com/Lychee-Home/swee/commit/a3d53ad6a8136fe9dec3a7142adfcf7a5ef9a79e))
+
+
+### Bug Fixes
+
+* reword palfeed embed title to describe IVs, not the Pal ([#52](https://github.com/Lychee-Home/swee/issues/52)) ([58c529a](https://github.com/Lychee-Home/swee/commit/58c529a6092cb24991b54a8a3a93388f60c957a6))
+
 ## [2.9.0](https://github.com/Lychee-Home/swee/compare/v2.8.0...v2.9.0) (2026-07-21)
 
 
