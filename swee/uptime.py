@@ -28,4 +28,7 @@ def format_uptime(seconds: int) -> str:
     if hours >= 1:
         remainder = minutes - hours * 60
         return f"{hours}h {remainder}m" if remainder else f"{hours}h"
-    return f"{minutes}m"
+    if minutes >= 1:
+        remainder = seconds - minutes * 60
+        return f"{minutes}m {remainder}s" if remainder else f"{minutes}m"
+    return f"{seconds}s"
