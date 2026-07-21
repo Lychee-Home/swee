@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.9.0](https://github.com/Lychee-Home/swee/compare/v2.8.0...v2.9.0) (2026-07-21)
+
+
+### Features
+
+* use palsave-api's resolved pal display name in palfeed embeds ([#50](https://github.com/Lychee-Home/swee/issues/50)) ([7d5bb38](https://github.com/Lychee-Home/swee/commit/7d5bb38a2f0d62c32c48984e9c9aa15fce3e40b3))
+
 ## [2.8.0](https://github.com/Lychee-Home/swee/compare/v2.7.0...v2.8.0) (2026-07-21)
 
 
