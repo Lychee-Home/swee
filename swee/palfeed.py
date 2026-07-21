@@ -66,9 +66,13 @@ def format_catch_embed(event, tier):
     defense = event.get("talent_defense", 0)
     total = talent_score(event)
     percent = round(total / 300 * 100)
-    description = f"{level_prefix}{hp} HP / {attack} Attack / {defense} Defense — {percent}% IV"
 
-    return title, description
+    fields = [
+        ("IV%", f"{percent}%"),
+        ("Stats", f"{level_prefix}{hp} HP / {attack} Attack / {defense} Defense"),
+    ]
+
+    return title, fields
 
 
 @tasks.loop(seconds=60)
@@ -82,9 +86,10 @@ async def palfeed_ticker():
     for event in events:
         tier = notability_tier(event)
         if tier:
-            title, description = format_catch_embed(event, tier)
+            title, fields = format_catch_embed(event, tier)
             sent = await broadcast_embed(
-                title, description, COLOR_PALFEED, channel_id=PALFEED_CHANNEL_ID,
+                title, None, COLOR_PALFEED, channel_id=PALFEED_CHANNEL_ID,
+                fields=fields, fields_inline=False,
             )
             if not sent:
                 log.warning("palfeed announcement failed for event %s, will retry next tick", event["id"])
