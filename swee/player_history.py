@@ -11,7 +11,7 @@ log = logging.getLogger("swee")
 
 PLAYER_HISTORY_PATH = "player_history.json"
 SESSION_STATE_PATH = "session_state.json"
-player_history = {}   # userId -> {"name": str, "last_seen": ISO8601 str}
+player_history = {}   # userId -> {"name": str, "last_seen": ISO8601 str, "player_id": str | None}
 online_players = {}   # display name -> userId, refreshed on join/leave/tick
 session_started = {}  # display name -> ISO8601 join timestamp, cleared on leave, persisted to SESSION_STATE_PATH
 # Safe without a lock only because these dicts are never mutated across an `await`
@@ -69,7 +69,7 @@ async def record_join(name, dt):
             uid = p["userId"]
             online_players[name] = uid
             session_started[name] = dt.isoformat()
-            player_history[uid] = {"name": name, "last_seen": dt.isoformat()}
+            player_history[uid] = {"name": name, "last_seen": dt.isoformat(), "player_id": p.get("playerId")}
             player_history.pop(f"name:{name}", None)  # supersede any stale fallback-key entry
             save_player_history()
             save_session_state()
@@ -84,7 +84,10 @@ async def record_leave(name, dt):
     if uid is None:
         uid = f"name:{name}"
         log.warning("player history: no stable ID found for %s on leave, using fallback key", name)
-    player_history[uid] = {"name": name, "last_seen": dt.isoformat()}
+    # Preserve any previously-recorded player_id — this rewrite has no fresh REST data to draw
+    # from, so a naive fresh dict here would silently drop it.
+    player_id = player_history.get(uid, {}).get("player_id")
+    player_history[uid] = {"name": name, "last_seen": dt.isoformat(), "player_id": player_id}
     save_player_history()
     save_session_state()
 
@@ -99,7 +102,23 @@ def refresh_online_players(players_list):
         uid = p["userId"]
         online_players[p["name"]] = uid
         session_started.setdefault(p["name"], now_iso)
-        player_history[uid] = {"name": p["name"], "last_seen": now_iso}
+        player_history[uid] = {"name": p["name"], "last_seen": now_iso, "player_id": p.get("playerId")}
         player_history.pop(f"name:{p['name']}", None)  # supersede any stale fallback-key entry
     save_player_history()
     save_session_state()
+
+
+def resolve_owner_name(player_uid):
+    """Look up the current display name for a save-file PlayerUId GUID (e.g.
+    "d3609521-0000-0000-0000-000000000000", as palsave-api's diff.py formats it), by matching
+    against the REST API's playerId shape (uppercase, no dashes) stored in player_history.
+    Returns None if the GUID has never been seen (or player_uid is None/empty) — no migration
+    needed for entries predating this field.
+    """
+    if not player_uid:
+        return None
+    normalized = player_uid.replace("-", "").upper()
+    for entry in player_history.values():
+        if entry.get("player_id") == normalized:
+            return entry["name"]
+    return None
