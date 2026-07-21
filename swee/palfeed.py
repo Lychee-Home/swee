@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime
 
 import httpx
 from discord.ext import tasks
@@ -83,6 +84,17 @@ def format_catch_embed(event, tier):
     return title, fields
 
 
+def parse_acquired_at(event):
+    acquired_at = event.get("acquired_at")
+    if not acquired_at:
+        return None
+    try:
+        return datetime.fromisoformat(acquired_at)
+    except ValueError:
+        log.warning("palfeed event %s has unparseable acquired_at %r", event.get("id"), acquired_at)
+        return None
+
+
 @tasks.loop(seconds=60)
 async def palfeed_ticker():
     try:
@@ -96,7 +108,7 @@ async def palfeed_ticker():
         if tier:
             title, fields = format_catch_embed(event, tier)
             sent = await broadcast_embed(
-                title, None, TIER_COLORS[tier], channel_id=PALFEED_CHANNEL_ID,
+                title, None, TIER_COLORS[tier], parse_acquired_at(event), channel_id=PALFEED_CHANNEL_ID,
                 fields=fields, fields_inline=False,
             )
             if not sent:
