@@ -6,13 +6,27 @@ from discord.ext import tasks
 
 from swee.config import COLOR_PALFEED, PALFEED_CHANNEL_ID, PALFEED_SERVICE_URL
 from swee.embeds import broadcast_embed
-from swee.palfeed_notability import ACQUISITION_LABELS, notability_tier, talent_score
+from swee.palfeed_notability import notability_tier, talent_score
 from swee.player_history import resolve_owner_name
 
 log = logging.getLogger("swee")
 
 PALFEED_STATE_PATH = "palfeed_state.json"
 PALFEED_BATCH_LIMIT = 5
+
+ACQUISITION_VERBS = {
+    "wild_capture": "caught",
+    "hatched": "hatched",
+    "purchased": "purchased",
+}
+
+TIER_ARTICLES = {
+    "Lucky": "a",
+    "Awakened": "an",
+    "Perfect": "a",
+    "Excellent": "an",
+    "Great": "a",
+}
 
 last_event_id = 0  # cached in-memory; mirrors palfeed_state.json on disk
 
@@ -45,15 +59,24 @@ async def fetch_new_pal_events(since, limit):
 
 
 def format_catch_embed(event, tier):
-    title = f"{event.get('character_id') or 'Unknown Pal'} — {tier}"
-    acquisition = ACQUISITION_LABELS.get(event.get("acquisition_type"), "Acquired")
-    level = event.get("level")
-    description = acquisition + (f" — Level {level}" if level is not None else "")
-    fields = [("Talent Score", f"{talent_score(event)}/300")]
+    character_id = event.get("character_id") or "Unknown Pal"
+    verb = ACQUISITION_VERBS.get(event.get("acquisition_type"), "acquired")
+    article = TIER_ARTICLES.get(tier, "a")
     owner_name = resolve_owner_name(event.get("owner_player_uid"))
     if owner_name:
-        fields.append(("Owner", owner_name))
-    return title, description, fields
+        title = f"{owner_name} {verb} {article} {tier} {character_id}"
+    else:
+        title = f"{article.capitalize()} {tier} {character_id} was {verb}"
+
+    level = event.get("level")
+    level_prefix = f"Level {level} · " if level is not None else ""
+    hp = event.get("talent_hp", 0)
+    attack = event.get("talent_shot", 0)
+    defense = event.get("talent_defense", 0)
+    total = talent_score(event)
+    description = f"{level_prefix}{hp} HP / {attack} Attack / {defense} Defense — {total}/300 IVs"
+
+    return title, description
 
 
 @tasks.loop(seconds=60)
@@ -67,9 +90,9 @@ async def palfeed_ticker():
     for event in events:
         tier = notability_tier(event)
         if tier:
-            title, description, fields = format_catch_embed(event, tier)
+            title, description = format_catch_embed(event, tier)
             sent = await broadcast_embed(
-                title, description, COLOR_PALFEED, channel_id=PALFEED_CHANNEL_ID, fields=fields,
+                title, description, COLOR_PALFEED, channel_id=PALFEED_CHANNEL_ID,
             )
             if not sent:
                 log.warning("palfeed announcement failed for event %s, will retry next tick", event["id"])

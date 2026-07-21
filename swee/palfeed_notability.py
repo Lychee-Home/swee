@@ -17,12 +17,6 @@ TALENT_TIERS = (
     (250, "Great"),
 )
 
-ACQUISITION_LABELS = {
-    "wild_capture": "Caught in the wild",
-    "hatched": "Hatched from an egg",
-    "purchased": "Purchased from a merchant",
-}
-
 
 def talent_score(event: dict) -> int:
     return event.get("talent_hp", 0) + event.get("talent_shot", 0) + event.get("talent_defense", 0)
