@@ -14,7 +14,6 @@ worth posting to a Discord highlight channel.
 TALENT_TIERS = (
     (300, "Perfect"),
     (280, "Excellent"),
-    (250, "Great"),
 )
 
 
