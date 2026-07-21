@@ -8,6 +8,7 @@ from swee.config import ACTIVITY_CHANNEL_ID, COLOR_READY, OFFLINE_PLAYERS_LIMIT
 from swee.cpu import get_cpu_usage
 from swee.player_history import session_started
 from swee.ram import get_ram_usage
+from swee.uptime import format_uptime
 
 log = logging.getLogger("swee")
 
@@ -71,7 +72,7 @@ def add_status_fields(embed, info, metrics, players, offline_entries):
     # sliding in next to Online/Offline.
     embed.add_field(name="​", value="​", inline=True)
     embed.add_field(name="FPS", value=metrics["serverfps"])
-    embed.add_field(name="Uptime", value=f"{metrics['uptime'] // 3600}h")
+    embed.add_field(name="Uptime", value=format_uptime(metrics["uptime"]))
     embed.add_field(name="Day", value=metrics["days"])
     embed.add_field(name="Version", value=info["version"])
     return embed
