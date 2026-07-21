@@ -59,7 +59,7 @@ async def fetch_new_pal_events(since, limit):
 
 
 def format_catch_embed(event, tier):
-    character_id = event.get("character_id") or "Unknown Pal"
+    character_id = event.get("pal_name") or event.get("character_id") or "Unknown Pal"
     verb = ACQUISITION_VERBS.get(event.get("acquisition_type"), "acquired")
     article = TIER_ARTICLES.get(tier, "a")
     owner_name = resolve_owner_name(event.get("owner_player_uid"))
