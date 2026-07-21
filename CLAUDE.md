@@ -18,9 +18,11 @@ concern). See `README.md` for architecture and setup details.
   into the `.venv` at the repo root
 - Configuration is via environment variables loaded from a `.env` file (see `.env.example` for the
   full list — bot token, guild/channel/role IDs, Palworld REST credentials)
-- `tests/test_palworld_settings.py` covers the pure ini-parsing/writing/validation functions in
-  `swee/palworld_settings.py`; run with `python -m unittest discover tests -v`. No coverage of the
-  Discord command layer itself (no test harness for that yet) — verify those manually.
+- `tests/` covers the pure, swee-internal-import-free logic modules (`palworld_settings.py` ini
+  parsing/writing/validation, `uptime.py` humanized duration formatting, `palfeed_notability.py`
+  catch-tier scoring, `cpu.py`, `player_history.py`, release-notes humanizing, the assistant's
+  tool-calling logic); run with `python -m unittest discover tests -v`. No coverage of the Discord
+  command layer itself (no test harness for that yet) — verify those manually.
 - The bot assumes it runs on the same Linux host as the Palworld server (it shells out to
   `journalctl`/`systemctl` and reads `/proc/meminfo` directly) — it will not run as-is on Windows
 
