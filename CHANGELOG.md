@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.11.1](https://github.com/Lychee-Home/swee/compare/v2.11.0...v2.11.1) (2026-07-23)
+
+
+### Bug Fixes
+
+* don't say "with Lucky IVs" / "with Awakened IVs" in palfeed titles ([#64](https://github.com/Lychee-Home/swee/issues/64)) ([29400a2](https://github.com/Lychee-Home/swee/commit/29400a229b1a1357d00bb4984733719ec698fc61))
+
 ## [2.11.0](https://github.com/Lychee-Home/swee/compare/v2.10.0...v2.11.0) (2026-07-21)
 
 
