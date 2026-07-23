@@ -28,6 +28,11 @@ TIER_COLORS = {
     "Excellent": 0x3498DB,
 }
 
+TRAIT_TIER_ARTICLES = {
+    "Lucky": "a",
+    "Awakened": "an",
+}
+
 last_event_id = 0  # cached in-memory; mirrors palfeed_state.json on disk
 
 
@@ -62,7 +67,13 @@ def format_catch_embed(event, tier):
     character_id = event.get("pal_name") or event.get("character_id") or "Unknown Pal"
     verb = ACQUISITION_VERBS.get(event.get("acquisition_type"), "acquired")
     owner_name = resolve_owner_name(event.get("owner_player_uid"))
-    if owner_name:
+    article = TRAIT_TIER_ARTICLES.get(tier)
+    if article:
+        if owner_name:
+            title = f"{owner_name} {verb} {article} {tier} {character_id}"
+        else:
+            title = f"{article.capitalize()} {tier} {character_id} was {verb}"
+    elif owner_name:
         title = f"{owner_name} {verb} a {character_id} with {tier} IVs"
     else:
         title = f"A {character_id} with {tier} IVs was {verb}"
