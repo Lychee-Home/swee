@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.11.2](https://github.com/Lychee-Home/swee/compare/v2.11.1...v2.11.2) (2026-07-24)
+
+
+### Bug Fixes
+
+* don't restart log_tailer and tickers on every on_ready ([#66](https://github.com/Lychee-Home/swee/issues/66)) ([6954abc](https://github.com/Lychee-Home/swee/commit/6954abc337751c0d6027aa46573e646236511ca2))
+
 ## [2.11.1](https://github.com/Lychee-Home/swee/compare/v2.11.0...v2.11.1) (2026-07-23)
 
 
