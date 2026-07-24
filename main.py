@@ -19,6 +19,7 @@ from swee.stats import stats_ticker
 log = logging.getLogger("swee")
 
 _log_tailer_task = None  # keeps a strong reference so asyncio doesn't GC it mid-run
+_startup_done = False  # on_ready can refire after a reconnect; run startup tasks only once
 
 
 # ---------- Discord -> game ----------
@@ -39,13 +40,15 @@ async def on_ready():
     guild = discord.Object(id=GUILD_ID)
     bot.tree.copy_global_to(guild=guild)
     await bot.tree.sync(guild=guild)
-    global _log_tailer_task
-    _log_tailer_task = asyncio.create_task(log_tailer())
-    stats_ticker.start()
-    if GITHUB_REPO:
-        release_ticker.start()
-    if PALFEED_SERVICE_URL:
-        palfeed_ticker.start()
+    global _log_tailer_task, _startup_done
+    if not _startup_done:
+        _startup_done = True
+        _log_tailer_task = asyncio.create_task(log_tailer())
+        stats_ticker.start()
+        if GITHUB_REPO:
+            release_ticker.start()
+        if PALFEED_SERVICE_URL:
+            palfeed_ticker.start()
     log.info("Logged in as %s", bot.user)
 
 
